@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Emberframe video library</title>
+<meta name="color-scheme" content="dark">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="styles.css?v=14">
+</head>
+<body>
+<canvas id="embers" aria-hidden="true"></canvas>
+
+<header class="top">
+  <div class="wrap site-header">
+    <a class="logo" href="index.html">
+      <svg class="logo-mark" viewBox="0 0 20 20" aria-hidden="true"><rect x="1.5" y="1.5" width="17" height="17" rx="4" fill="none" stroke="#262626" stroke-width="1.5"/><rect x="6" y="6" width="8" height="8" rx="2" fill="#E5481B"/></svg>
+      Emberframe
+    </a>
+    <nav class="nav" aria-label="App">
+      <a href="index.html">Home</a>
+      <a href="library.html" aria-current="page">Library</a>
+      <a href="index.html#pricing">Pricing</a>
+    </nav>
+    <div class="account" id="account"></div>
+  </div>
+</header>
+
+<main class="page">
+  <div class="wrap stack">
+    <div class="head-row">
+      <div class="stack head">
+        <div class="marker"><b>[ LIBRARY ]</b><i></i><span>TikTok Shop</span></div>
+        <h1 class="display">Videos selling <span class="hl">right now</span></h1>
+        <p class="lede" data-guest>A free look at three of the TikTok Shop videos we track. Sign up to see the rest and remake any of them with your own avatar.</p>
+        <p class="lede" data-member hidden>Every video is open. Pick one and remake it with your own avatar.</p>
+      </div>
+      <span class="sample">KAIYROS DISCOVER 2026-11-11</span>
+    </div>
+
+    <div class="filters" id="cats" role="group" aria-label="Category">
+      <button type="button" class="btn" data-cat="All" aria-pressed="true">All</button>
+      <button type="button" class="btn" data-cat="Home" aria-pressed="false">Home</button>
+      <button type="button" class="btn" data-cat="Beauty" aria-pressed="false">Beauty</button>
+      <button type="button" class="btn" data-cat="Tech" aria-pressed="false">Tech</button>
+      <button type="button" class="btn" data-cat="Lifestyle" aria-pressed="false">Lifestyle</button>
+    </div>
+
+    <div class="tiles" id="library-grid" data-cat="All"></div>
+
+    <div class="banner" data-guest>
+      <div>
+        <b>See every video</b>
+        <span>Thousands of selling TikTok Shop products, the videos moving them, and the pipeline that remakes any of them with your avatar.</span>
+      </div>
+      <div class="cta-row">
+        <button type="button" class="btn btn-accent btn-lg" data-auth="signup">Sign up</button>
+        <button type="button" class="btn btn-lg" data-auth="login">Log in</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="wrap">
+    <span>EMBERFRAME · [YOUR COMPANY NAME]</span>
+    <span>Video powered by MiniMax H3</span>
+    <span>All output is AI-generated</span>
+  </div>
+</footer>
+
+<script src="config.js?v=14"></script>
+<script src="particles.js?v=14"></script>
+<script src="app.js?v=14"></script>
+<script src="motion.js?v=14"></script>
+</body>
+</html>
