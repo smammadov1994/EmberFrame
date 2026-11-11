@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Emberframe Studio</title>
+<meta name="color-scheme" content="dark">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="styles.css?v=17">
+<link rel="stylesheet" href="studio.css?v=40">
+<link rel="stylesheet" href="flow.css?v=7">
+</head>
+<body class="studio">
+
+<header class="s-top">
+  <a class="s-logo" href="index.html" aria-label="Emberframe home">
+    <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="1.5" y="1.5" width="17" height="17" rx="5" fill="none" stroke="currentColor" stroke-width="1.5"/><rect class="core" x="6" y="6" width="8" height="8" rx="2.5"/></svg>
+  </a>
+  <nav class="menubar" id="menubar" aria-label="Menu"></nav>
+  <div class="s-title">
+    <input class="s-name" id="s-name" aria-label="Project name" spellcheck="false">
+    <span class="s-saved" id="s-saved" role="status"></span>
+  </div>
+  <div class="s-right">
+    <button type="button" class="s-acct" id="acct-btn" aria-haspopup="true" aria-expanded="false" title="Account">
+      <span id="s-who"></span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <button type="button" class="btn btn-accent" id="s-next">Next: post
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </div>
+</header>
+
+<div class="s-body">
+
+  <!-- Ember -->
+  <aside class="panel chat" aria-label="Ember">
+    <div class="chat-head">
+      <span class="orb" id="orb" aria-hidden="true"><i></i></span>
+      <div class="chat-id"><b>Ember</b><span id="ember-state">Starting up</span></div>
+      <button type="button" class="chat-new" id="chat-clear" title="Start a clean chat about this same video. This one is kept in History.">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>New chat
+      </button>
+    </div>
+    <div class="chat-log" id="chat-log" aria-live="polite"></div>
+    <div class="chat-foot">
+      <div class="chat-chips" id="chat-chips"></div>
+      <form class="composer" id="chat-form">
+        <textarea id="chat-input" rows="1" placeholder="Tell Ember what to do" aria-label="Message Ember"></textarea>
+        <div class="composer-row">
+          <label class="icon-btn" title="Add footage" aria-label="Add footage">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M14.5 9.5l-5 5a3 3 0 0 1-4.2-4.2l6-6a2 2 0 0 1 2.8 2.8l-5.6 5.6a1 1 0 0 1-1.4-1.4l4.9-4.9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <input type="file" id="upload-chat" accept="video/*,audio/*,image/*" multiple hidden>
+          </label>
+          <span class="hint" id="composer-hint">Enter to send</span>
+          <button type="submit" class="send" id="chat-send" aria-label="Send">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 15.5v-11M5.5 9L10 4.5 14.5 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <button type="button" class="send stop" id="chat-stop" aria-label="Stop" hidden>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="6" y="6" width="8" height="8" rx="2" fill="currentColor"/></svg>
+          </button>
+        </div>
+      </form>
+    </div>
+  </aside>
+
+  <!-- Editor -->
+  <main class="ed">
+    <div class="rz rz-chat" id="rz-chat" role="separator" aria-orientation="vertical" tabindex="0" aria-label="Resize Ember's panel" title="Drag to resize. Double-click to reset."></div>
+    <div class="rz rz-rail" id="rz-rail" role="separator" aria-orientation="vertical" tabindex="0" aria-label="Resize the library" title="Drag to resize. Double-click to reset."></div>
+    <div class="rz rz-tl" id="rz-tl" role="separator" aria-orientation="horizontal" tabindex="0" aria-label="Resize the timeline" title="Drag to resize. Double-click to reset."></div>
+    <div class="ed-top">
+      <!-- The library rail. It can grow over the whole editor and become the browse view. -->
+      <section class="panel lib" id="lib" aria-label="Library">
+        <div class="lib-rail">
+          <div class="lib-tabs" role="tablist">
+            <button type="button" role="tab" data-tab="media" aria-selected="true">Media</button>
+            <button type="button" role="tab" data-tab="shop" aria-selected="false">Shop<i id="shop-count"></i></button>
+            <button type="button" class="icon-btn grow-btn" id="lib-grow" title="Open the full view" aria-label="Open the full view">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M11.5 4.5h4v4M15.5 4.5L11 9M8.5 15.5h-4v-4M4.5 15.5L9 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <label class="icon-btn up" title="Upload" aria-label="Upload">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 13.5v-9M6 8l4-4 4 4M4.5 15.5h11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <input type="file" id="upload" accept="video/*,audio/*,image/*" multiple hidden>
+            </label>
+          </div>
+          <div class="lib-list" id="lib-media"></div>
+          <div class="lib-list shop" id="lib-shop" hidden></div>
+        </div>
+        <div class="lib-wide" id="canvas" aria-hidden="true">
+          <div class="cv-head">
+            <div class="cv-id"><span class="tag"><span class="orb mini" aria-hidden="true"></span>Ember's view</span><h2 id="cv-title"></h2><p id="cv-sub"></p></div>
+            <div class="cv-actions">
+            <button type="button" class="btn" id="cv-nums" aria-pressed="false" hidden><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 13V8M8 13V3M13 13V6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span>Show the numbers</span></button>
+            <button type="button" class="btn" id="cv-close">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13 8H4M7.5 4l-4 4 4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Back to the editor<kbd>Esc</kbd>
+            </button>
+            </div>
+          </div>
+          <div class="cv-body" id="cv-body"></div>
+        </div>
+      </section>
+
+      <section class="panel mon" aria-label="Preview">
+        <div class="stage" id="stage">
+          <div class="screen" id="screen">
+            <video id="vid-a" playsinline preload="auto"></video>
+            <video id="vid-b" playsinline preload="auto"></video>
+            <div class="cap-live" id="cap-live" hidden></div>
+            <div class="rec-count" id="rec-count" hidden></div>
+            <div class="rec-live" id="rec-live" hidden><i></i>Recording your voice</div>
+            <div class="empty" id="empty" hidden><b>Nothing on the timeline yet</b><span>Drag a clip down from the library, or ask Ember to film one.</span></div>
+          </div>
+        </div>
+        <div class="transport">
+          <div class="tp-left"><span class="time"><b id="t-now">0:00.0</b><i>/</i><span id="t-all">0:00.0</span></span></div>
+          <div class="tp-mid">
+            <button type="button" class="tp" id="tp-prev" aria-label="Previous cut" title="Previous cut">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 5v10M15 5.5L8.5 10l6.5 4.5z" fill="currentColor" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/></svg>
+            </button>
+            <button type="button" class="play" id="play" aria-label="Play or pause">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path id="play-ico" d="M6.5 4.2l10 5.8-10 5.8z" fill="currentColor"/></svg>
+            </button>
+            <button type="button" class="tp" id="tp-next" aria-label="Next cut" title="Next cut">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M14 5v10M5 5.5l6.5 4.5L5 14.5z" fill="currentColor" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+          <div class="tp-right">
+            <div class="shape" id="aspect" role="group" aria-label="Shape">
+              <button type="button" data-a="9:16" title="Vertical 9:16"><i class="r916"></i></button>
+              <button type="button" data-a="1:1" title="Square 1:1"><i class="r11"></i></button>
+              <button type="button" data-a="16:9" title="Wide 16:9"><i class="r169"></i></button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel tl" aria-label="Timeline">
+      <div class="tl-tools">
+        <div class="grp">
+          <button type="button" class="tool ico" id="t-undo" title="Undo (Cmd Z)" aria-label="Undo"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 5L3.5 8.5 7 12M4 8.5h7.5a4 4 0 0 1 0 8H9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button type="button" class="tool ico" id="t-redo" title="Redo (Shift Cmd Z)" aria-label="Redo"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M13 5l3.5 3.5L13 12M16 8.5H8.5a4 4 0 0 0 0 8H11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
+        <div class="grp">
+          <button type="button" class="tool" id="t-split" title="Split at the playhead (S)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.5v15M6 6l-2.5 4L6 14M14 6l2.5 4L14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Split</button>
+          <button type="button" class="tool" id="t-del" title="Delete the selection (Delete)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 6h11M8 6V4.5h4V6M6 6l.7 9.5h6.6L14 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Delete</button>
+        </div>
+        <div class="grp magic">
+          <button type="button" class="tool" id="t-clean" title="Cut the pauses out"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 10h2M7 6v8M10.5 8.5v3M14 4.5v11M17 10h0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>Clean up</button>
+          <button type="button" class="tool" id="t-caps" title="Captions from the speech"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="4.5" width="15" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6 11.5h3M11 11.5h3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>Captions</button>
+          <button type="button" class="tool" id="t-cap1" title="Add one caption at the playhead">+ Caption</button>
+        </div>
+        <div class="grp">
+          <button type="button" class="tool rec" id="t-rec" title="Record your own voice over the cut, from the playhead" aria-pressed="false"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="7.5" y="3" width="5" height="9" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5 10a5 5 0 0 0 10 0M10 15v2.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span id="t-rec-label">Record voice</span><i id="t-rec-level" aria-hidden="true"></i></button>
+        </div>
+        <div class="insp" id="insp" hidden></div>
+        <span class="grow"></span>
+        <span class="keys" aria-hidden="true"><kbd>Space</kbd> play <kbd>S</kbd> split <kbd>&#9003;</kbd> delete</span>
+        <label class="zoom"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M13 13l3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><input type="range" id="zoom" min="20" max="220" value="70" aria-label="Zoom"></label>
+      </div>
+      <div class="tl-wrap">
+        <div class="tl-labels">
+          <span></span>
+          <span><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="5" width="14" height="10" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8.5 8l3.5 2-3.5 2z" fill="currentColor"/></svg>Video</span>
+          <span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 9v2M7.5 6v8M11 8v4M14.5 5v10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>Audio</span>
+          <span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12M4 10h12M4 14h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>Text</span>
+        </div>
+        <div class="tl-scroll" id="tl-scroll">
+          <div class="tl-inner" id="tl-inner">
+            <div class="ruler" id="ruler"></div>
+            <div class="lane" id="lane-video" data-track="video" data-hint="Drop clips here. They play in order."></div>
+            <div class="lane" id="lane-audio" data-track="audio" data-hint="Voice lines and music go here."></div>
+            <div class="lane" id="lane-captions" data-track="captions" data-hint="Captions appear here."></div>
+            <div class="marker" id="marker" hidden></div>
+            <div class="playhead" id="playhead"><i></i></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Step 1 -->
+    <div class="sheet" id="sheet-create" hidden>
+      <div class="sheet-in">
+        <span class="tag">Step 1</span>
+        <h2>How do you want to start?</h2>
+        <div class="starts">
+          <button type="button" data-say="Find what is trending on TikTok Shop right now and show me the best five to remake.">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h14l-1.2 11H6.2zM9 8V6.5a3 3 0 0 1 6 0V8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+            <b>Start from what sells</b><span>Ember searches TikTok Shop and brings back the videos that are moving product.</span></button>
+          <button type="button" data-fill="Film a 6 second vertical shot: ">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+            <b>Film a new shot</b><span>Describe it the way you would to a camera operator. Our GPUs render it with sound.</span></button>
+          <button type="button" data-upload>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5V5M7.5 9.5L12 5l4.5 4.5M5 18.5h14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <b>Bring your own footage</b><span>Upload clips or a voiceover and let Ember cut them.</span></button>
+        </div>
+        <button type="button" class="link" data-close>Go to the editor</button>
+      </div>
+    </div>
+
+    <!-- Step 3 -->
+    <div class="sheet" id="sheet-post" hidden>
+      <div class="sheet-in post">
+        <div class="post-prev">
+          <div class="post-screen" id="post-screen"><span id="post-wait">Not exported yet</span><video id="post-video" controls playsinline hidden></video></div>
+          <button type="button" class="btn" id="post-export">Export the video</button>
+          <p class="fine" id="post-info"></p>
+        </div>
+        <div class="post-form">
+          <span class="tag">Step 3</span>
+          <h2>Post it</h2>
+          <label for="post-caption">Caption</label>
+          <textarea id="post-caption" rows="5" placeholder="Ask Ember to write this, or type your own."></textarea>
+          <label for="post-tags">Hashtags</label>
+          <input id="post-tags" placeholder="tiktokshop, kitchenfinds">
+          <div class="disc"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 6.5l2.5 2.5 4.5-5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>AI-generated label is on. It is written into the file and cannot be turned off.</div>
+          <div class="post-go">
+            <button type="button" class="btn btn-accent btn-lg" id="post-manual">Download and post myself</button>
+            <button type="button" class="btn btn-lg" id="post-auto">Add to auto-post queue</button>
+          </div>
+          <p class="fine" id="post-msg" role="status"></p>
+          <button type="button" class="link" data-close>Back to the editor</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Step 1, Create: the flow. A node canvas you can pan and zoom; drag a line out of a node to add the next. -->
+<div class="flow" id="flow" hidden>
+  <div class="flow-top">
+    <span class="orb" aria-hidden="true"></span>
+    <div class="flow-say"><small id="flow-step"></small><p id="flow-say"></p></div>
+    <button type="button" class="f-switch" id="flow-guided" role="switch" aria-checked="true" title="Guided: I add the next step as you finish each one. Off: you drag the wires yourself."><i></i>Guided</button>
+    <button type="button" class="link" id="flow-reset">Start over</button>
+  </div>
+  <div class="flow-view" id="flow-view">
+    <div class="flow-world" id="flow-world"><svg class="flow-wires" id="flow-wires" aria-hidden="true"></svg></div>
+    <div class="flow-zoom" role="group" aria-label="Zoom">
+      <button type="button" id="flow-out" aria-label="Zoom out" title="Zoom out">&minus;</button>
+      <span id="flow-pct">100%</span>
+      <button type="button" id="flow-in" aria-label="Zoom in" title="Zoom in">+</button>
+      <button type="button" id="flow-fit" title="Fit everything on screen">Fit</button>
+    </div>
+    <div class="flow-menu" id="flow-menu" hidden></div>
+    <aside class="flow-panel" id="flow-panel" aria-label="Node" hidden></aside>
+  </div>
+</div>
+
+<div class="menu-pop" id="menu-pop" role="menu" hidden></div>
+<div class="dlg" id="dlg" hidden><div class="dlg-in" id="dlg-in" role="dialog" aria-modal="true"></div></div>
+
+<div class="gate" id="gate" hidden>
+  <div class="gate-in">
+    <span class="orb big" aria-hidden="true"><i></i></span>
+    <h1 id="gate-title"></h1>
+    <p id="gate-text"></p>
+    <pre id="gate-code" hidden></pre>
+    <a class="btn btn-accent btn-lg" id="gate-go" href="index.html"></a>
+  </div>
+</div>
+
+<script src="studio.js?v=35"></script>
+<script src="flow.js?v=7"></script>
+</body>
+</html>

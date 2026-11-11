@@ -52,6 +52,47 @@ python3 -m http.server 4175 --bind 127.0.0.1
 
 Then open <http://127.0.0.1:4175/>. Any static file server works.
 
+## The studio (Ember and the editor)
+
+The studio is the screen you land on after signing in: **Ember**, a chat agent, on the left, and a
+**video editor** on the right. It needs a small server, because it calls real models.
+
+```bash
+uv run server/ember.py
+```
+
+Then open <http://127.0.0.1:4180/studio.html>.
+
+What Ember can do, by chat or by its buttons:
+
+- **Edit the cut:** trim, split, cut a range, reorder, captions, volume. You can also drag everything by hand; Ember sees what you change.
+- **Clean up:** find the pauses and cut them out.
+- **Captions** from the speech, burned in on export.
+- **Listen and look:** transcribe any clip, or look at its frames, before deciding what to cut.
+- **TikTok Shop:** search what is selling and bring videos in as references.
+- **Film new shots** on our GPUs and **record voice lines**. The price is shown and you approve before anything renders.
+- **Motion graphics with raea:** word-by-word captions timed to the speech, name tags, titles, end cards, wipes, whole ads. Ember writes the composition as code, checks it, looks at stills, renders it on this machine and puts the clip on the timeline.
+- **Export** one MP4 with the AI-generated label written into the file, then **post**: download it yourself, or add it to the auto-post queue.
+
+How it is put together:
+
+- One model, one streaming loop, fourteen tools. No router in front of the model and no second writer model.
+- The editor's project is the shared state. You change it by dragging; Ember changes it through `edit_timeline`; every message carries a fresh picture of it.
+- Anything that costs money or leaves the building goes through an approval you tap.
+- Users never reach the GPU. The server is the only holder of the machine address and token, each user has their own folder, and a user can only stop their own render.
+- Reference videos from other creators can be studied but not exported.
+
+To give Ember its full brain, put a model key in `server/.env` (this file is not committed). Either works:
+
+```bash
+ANTHROPIC_API_KEY=your-key-here     # Claude (used first if both are set)
+OPENAI_API_KEY=your-key-here        # OpenAI
+# optional: EMBER_BRAIN=openai   EMBER_OPENAI_MODEL=gpt-6-luna   EMBER_MODEL=claude-opus-5-5
+```
+
+Without a key the studio still runs: the editor works fully by hand, and Ember follows a few plain
+commands ("cut from 2 to 4", "clean it up", "add captions", "export").
+
 ## What is inside
 
 | File | What it does |
@@ -66,6 +107,12 @@ Then open <http://127.0.0.1:4175/>. Any static file server works.
 | `particles.js` | The ember streams behind the page |
 | `styles.css` | Everything visual |
 | `media/` | Rendered clips, Shop previews, workflow stage pictures and the footer art |
+| `studio.html`, `studio.css`, `studio.js` | The studio screen: a menu bar (File, Edit, View, Tools, History, Help), Ember chat, library, preview, timeline, post step. A person has many projects; a new project stays in the workflow until it has a clip |
+| `flow.js`, `flow.css` | Step 1, Create: the flow, a node board you can pan and zoom. Nodes for the subject, who is on camera, what to make, the script, the voice and the film; drag a line out of a node to add the next, or leave Guided on and each finished node grows the next. Then the editor opens |
+| `server/ember.py` | The studio's server: projects, Ember's tools and loop, export |
+| `supabase/migrations/` | The data model for Supabase (Postgres): people, projects, library, the cut, chats, boards, jobs, exports, the ledger, with row level security. Not connected to the studio yet |
+| `supabase/tests/test_schema.py` | Applies the migrations to a throwaway Postgres and checks the rules hold: `uv run supabase/tests/test_schema.py supabase/migrations` |
+| `server/raea_tools.py` | Ember's three raea tools (`raea_docs`, `raea_files`, `raea`) and what Ember is told about them. Needs [raea](https://github.com/shinyobjectz/raea) installed (`~/.local/bin/raea`); without it the studio runs as before |
 
 ### Changing prices
 

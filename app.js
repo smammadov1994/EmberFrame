@@ -80,6 +80,7 @@
     var u = Auth.user();
     box.textContent = '';
     if (u) {
+      box.appendChild(el('a', { class: 'btn btn-accent', href: 'studio.html', text: 'Open studio' }));
       box.appendChild(el('span', { class: 'who', text: u.email, title: u.email }));
       box.appendChild(el('button', { type: 'button', class: 'btn ' + (dark ? 'btn-ghost-dark' : ''), text: 'Log out', onclick: function () { Auth.logout(); changed(); } }));
     } else {
