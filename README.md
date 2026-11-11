@@ -7,7 +7,9 @@
 TikTok Shop data and a video studio in one product: find a product that is already selling,
 cast your own creator, and our GPUs film a new video with sound.
 
-![Emberframe landing page](docs/hero.jpg)
+**[See it live](https://smammadov1994.github.io/EmberFrame/)** · [Video library](https://smammadov1994.github.io/EmberFrame/library.html)
+
+[![Emberframe landing page](docs/hero.jpg)](https://smammadov1994.github.io/EmberFrame/)
 
 </div>
 
