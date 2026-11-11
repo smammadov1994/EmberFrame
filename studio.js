@@ -219,28 +219,58 @@
     $('#lib-media').hidden = which !== 'media'; $('#lib-shop').hidden = which !== 'shop';
   }
   $$('.lib-tabs [role=tab]').forEach(function (b) { b.addEventListener('click', function () { showTab(b.getAttribute('data-tab')); }); });
-  function uploadFiles(files) {
-    var chain = Promise.resolve();
+  function uploadFiles(files, where, at) {                    // where: 'library' (default), 'cut' (also onto the timeline), 'chat' (hand it to Ember)
+    var chain = Promise.resolve(), added = [];
     Array.prototype.forEach.call(files, function (f) {
       chain = chain.then(function () {
         var n = note('Uploading ' + f.name);
         var fd = new FormData(); fd.append('file', f);
         return api('/api/upload', { method: 'POST', body: fd }).then(function (r) {
-          setProject(r.project); n.textContent = 'Added ' + f.name + ' to the library.'; showTab('media');
-          if (A(r.asset).kind === 'image' && !P.avatar) {      // a photo and no avatar yet: offer the obvious
+          setProject(r.project); showTab('media'); added.push(r.asset);
+          var a = A(r.asset);
+          if (where === 'cut' && a.kind !== 'image') { addAsset(r.asset, a.kind === 'audio' ? undefined : indexAt(at === undefined ? 1e9 : at), a.kind === 'audio' ? Math.max(0, at || 0) : undefined); n.textContent = 'Added ' + f.name + ' to the cut.'; }
+          else n.textContent = 'Added ' + f.name + ' to the library.';
+          if (a.kind === 'image' && !P.avatar) {               // a photo and no avatar yet: offer the obvious
             var row = el('div', { class: 'next' }, [el('button', { type: 'button', text: 'Use as my avatar', onclick: function () { row.remove(); setAvatar(r.asset); } })]);
             log.appendChild(row); scrollLog();
           }
+          if (window.EmberFlow && window.EmberFlow.refresh) window.EmberFlow.refresh();
         })
           .catch(function (e) { n.textContent = 'Could not upload ' + f.name + '. ' + e.message; });
       });
     });
+    return chain.then(function () {
+      if (where === 'chat' && added.length && !busy) {         // dropped on Ember: start the sentence for them
+        var names = added.map(function (id) { return '"' + A(id).name + '"'; }).join(' and ');
+        if (!input.value.trim()) input.value = 'About ' + names + ': ';
+        input.focus(); input.setSelectionRange(input.value.length, input.value.length);
+      }
+      return added;
+    });
   }
-  ['#upload', '#upload-chat'].forEach(function (s) { $(s).addEventListener('change', function (e) { uploadFiles(e.target.files); e.target.value = ''; }); });
-  var libBox = $('#lib-media');
-  libBox.addEventListener('dragover', function (e) { if (e.dataTransfer.types.indexOf('Files') >= 0) { e.preventDefault(); libBox.classList.add('drop'); } });
-  libBox.addEventListener('dragleave', function () { libBox.classList.remove('drop'); });
-  libBox.addEventListener('drop', function (e) { libBox.classList.remove('drop'); if (e.dataTransfer.files.length) { e.preventDefault(); uploadFiles(e.dataTransfer.files); } });
+  ['#upload', '#upload-chat'].forEach(function (s) { $(s).addEventListener('change', function (e) { uploadFiles(e.target.files, s === '#upload-chat' ? 'chat' : 'library'); e.target.value = ''; }); });
+  /* ---------- drop files anywhere: from a folder onto the library, the timeline or Ember ---------- */
+  var veil = $('#drop-veil'), dragDepth = 0;
+  function hasFiles(e) { return !!e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') >= 0; }
+  function dropPlace(e) { var t = e.target && e.target.closest ? e.target : null; return !t || !$('#flow').hidden ? 'library' : t.closest('.tl') ? 'cut' : t.closest('.chat') ? 'chat' : 'library'; }
+  function veilOff() { dragDepth = 0; veil.hidden = true; $$('.drop-here').forEach(function (n) { n.classList.remove('drop-here'); }); }
+  window.addEventListener('dragenter', function (e) { if (!hasFiles(e) || !P) return; e.preventDefault(); dragDepth++; veil.hidden = false; });
+  window.addEventListener('dragover', function (e) {
+    if (!hasFiles(e) || !P) return;
+    e.preventDefault(); e.dataTransfer.dropEffect = 'copy';
+    var place = dropPlace(e), zone = place === 'cut' ? $('.tl') : place === 'chat' ? $('.chat') : $('#lib');
+    $('#drop-text').textContent = place === 'cut' ? 'Drop to add to the cut' : place === 'chat' ? 'Drop to give it to Ember' : 'Drop to add to your library';
+    $$('.drop-here').forEach(function (n) { if (n !== zone) n.classList.remove('drop-here'); });
+    if ($('#flow').hidden) zone.classList.add('drop-here');
+  });
+  window.addEventListener('dragleave', function (e) { if (!hasFiles(e)) return; dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) veilOff(); });
+  window.addEventListener('drop', function (e) {
+    if (!hasFiles(e)) return;
+    var place = dropPlace(e), handled = e.defaultPrevented;    // a drop zone of its own (the workflow's) has already taken it
+    e.preventDefault(); veilOff();
+    if (handled || !P || !e.dataTransfer.files.length) return;
+    uploadFiles(e.dataTransfer.files, place, place === 'cut' ? (e.clientX - inner.getBoundingClientRect().left) / pps : undefined);
+  });
 
   /* ---------- timeline ---------- */
   var lanes = { video: $('#lane-video'), audio: $('#lane-audio'), captions: $('#lane-captions') };
@@ -545,6 +575,20 @@
     swap_person: '<circle cx="7" cy="7" r="2.5"/><circle cx="13.5" cy="8" r="2"/><path d="M3 16c.5-3 2-4.5 4-4.5s3.5 1.5 4 4.5M12 12c2.5-.3 4 1.200 4.500 3.500"/>'
   };
   function scrollLog() { log.scrollTop = log.scrollHeight; }
+  var ACT_AT = { edit_timeline: '.tl', remove_silences: '.tl', auto_captions: '.tl', make_clip: '.tl', speak: '.tl', record_voice: '.tl', raea: '.tl',
+    shop_search: '#lib', shop_import: '#lib', set_avatar: '#lib', show_canvas: '#lib', set_view: '#lib', raea_files: '#lib',
+    transcribe: '.mon', look_at: '.mon', generate_clip: '.mon', render: '.mon', swap_person: '.mon', prepare_post: '.mon', raea_docs: '.mon' };
+  var acting = {};                                            // step id -> the panel it is lighting
+  function actOn(id, name) { var n = ACT_AT[name] && $(ACT_AT[name]); if (!n) return; acting[id] = n; n.classList.add('acting'); }
+  function actOff(id) {
+    var n = acting[id]; delete acting[id];
+    if (n) setTimeout(function () { if (!Object.keys(acting).some(function (k) { return acting[k] === n; })) n.classList.remove('acting'); }, 2200);   // one lap of the light, so even an instant edit is seen
+  }
+  function clipState() { var m = {}; ['video', 'audio', 'captions'].forEach(function (k) { P.tracks[k].forEach(function (c) { m[c.id] = [c.asset, c.in, c.out, c.volume, c.text, c.end === undefined ? '' : (c.end - c.start).toFixed(2), k === 'video' ? '' : c.start].join('|'); }); }); return m; }
+  function glowChanged(before) {                              // the clips Ember just touched glow once
+    var now = clipState();
+    Object.keys(now).forEach(function (id) { if (before[id] !== now[id]) { var n = $('.clip[data-id="' + id + '"]'); if (n) n.classList.add('touched'); } });
+  }
   function md(t) {                                            // just enough formatting for chat
     var h = t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>').replace(/`([^`\n]+)`/g, '<code>$1</code>');
@@ -570,7 +614,7 @@
     $('.chat').classList.toggle('working', on);
     $('#ember-state').textContent = on ? 'Thinking' : STATUS.brain !== 'offline' ? 'Ready' : 'Basic mode: model not connected';
     $('#chat-send').hidden = on; $('#chat-stop').hidden = !on;
-    $('#composer-hint').textContent = on ? 'Ember is working' : 'Enter to send';
+    input.placeholder = on ? 'Ember is working' : 'Tell Ember what to do';
     ['#t-clean', '#t-caps', '#post-export'].forEach(function (s) { $(s).disabled = on; });
   }
   function describe() { return { d: P.duration, v: P.tracks.video.length, a: P.tracks.audio.length, c: P.tracks.captions.length }; }
@@ -601,9 +645,10 @@
         if (msgEl) { msgEl.classList.remove('live'); msgEl = null; }
         if (!actEl) { actEl = el('div', { class: 'act' }); log.appendChild(actEl); }
         var row = el('div', { class: 'stp run' }, [el('span', { class: 'ic', html: svg(TOOL_ICON[ev.name] || '<circle cx="10" cy="10" r="3"/>') }), el('span', { class: 'lb', text: ev.label })]);
-        row._t = Date.now(); stepMap[ev.id] = row; actEl.appendChild(row);
+        row._t = Date.now(); stepMap[ev.id] = row; actEl.appendChild(row); actOn(ev.id, ev.name);
         $('#ember-state').textContent = ev.label; mood('busy');
       } else if (stepMap[ev.id]) {
+        actOff(ev.id);
         var r = stepMap[ev.id];
         r.className = 'stp ' + ev.state;
         r.appendChild(el('small', { text: ev.detail ? ev.detail : ((Date.now() - r._t) / 1000).toFixed(1) + 's' }));
@@ -614,9 +659,10 @@
       $('#ember-state').textContent = ev.note + (ev.elapsed ? ' · ' + ev.elapsed + 's' : '');
     } else if (ev.type === 'project') {
       var hadShop = P && P.shop ? JSON.stringify(P.shop.videos.map(function (v) { return v.id; })) : '';
-      var was = JSON.stringify(describe());
+      var was = JSON.stringify(describe()), clipsWere = clipState();
       REVIEW.marks = [];
       setProject(ev.project, true);
+      glowChanged(clipsWere);
       if (JSON.stringify(describe()) !== JSON.stringify(turnStart)) receipt();
       if (JSON.stringify(describe()) !== was && isBrowse()) closeBrowse();   // an edit is landing: show the editor
       if (P.shop && JSON.stringify(P.shop.videos.map(function (v) { return v.id; })) !== hadShop) showTab('shop');
@@ -669,6 +715,7 @@
       }
     });
     setBusy(false);
+    Object.keys(acting).forEach(actOff);
     if (nextEl) log.appendChild(nextEl);                      // next steps stay under everything else
     mood('happy'); clearTimeout(happyTimer); happyTimer = setTimeout(function () { if (!busy) mood(null); }, 1300);
     var chat = turnPath === '/api/chat' && STATUS.brain !== 'offline';

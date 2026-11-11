@@ -794,5 +794,5 @@
   $('#flow-reset').addEventListener('click', function () { G = fresh(); V = { x: 0, y: 0, k: 1 }; shopTried = false; Object.keys(els).forEach(function (id) { els[id].remove(); delete els[id]; }); draw(); renderPanel(); focusOn(G.nodes[0]); keep(); });
   window.addEventListener('resize', function () { if (!root.hidden) apply(false); });
   $('#flow .flow-top .orb').innerHTML = S.mascot();
-  window.EmberFlow = { open: open0, close: close, seen: function () { try { return !!localStorage.getItem(SEEN); } catch (e) { return true; } } };
+  window.EmberFlow = { open: open0, close: close, refresh: function () { if (!root.hidden) { draw(); renderPanel(); } }, seen: function () { try { return !!localStorage.getItem(SEEN); } catch (e) { return true; } } };
 })();
