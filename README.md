@@ -63,7 +63,7 @@ uv run server/ember.py
 
 Then open <http://127.0.0.1:4180/studio.html>.
 
-How the studio behaves, step by step, and the rules it enforces: [docs/STUDIO.md](docs/STUDIO.md).
+How the studio behaves, step by step, and the rules it enforces: [docs/STUDIO.md](docs/STUDIO.md). What changed recently: [docs/CHANGES.md](docs/CHANGES.md).
 
 What Ember can do, by chat or by its buttons:
 
