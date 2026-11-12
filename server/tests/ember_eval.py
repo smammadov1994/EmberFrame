@@ -121,9 +121,16 @@ if SLOW:
     # 9. a seller's question is answered from the data, with the numbers asked for
     p = project("Eval: seller question")
     r = say(p, "find skincare products with at least 15% commission that are growing and not crowded. tell me the best three with the numbers.")
-    check("a seller's question runs a Shop search", "shop_search" in r["tools"], r)
+    check("a seller's question is looked up in the Shop data", bool({"shop_search", "shop_products"} & set(r["tools"])), r)
     check("a seller's question is answered with commission and sales numbers", "%" in r["said"] and bool(re.search(r"\d{2,}", r["said"])), r["said"])
     check("a seller's question starts no video and no render", not (set(r["tools"]) & (FILMS | {"plan_video", "shop_import"})) and not r["approval"], r)
+
+if SLOW:
+    # 10. a product question goes to the catalogue
+    p = project("Eval: catalogue")
+    r = say(p, "which products under $20 are selling the most right now? give me the top three with units sold.")
+    check("a product question searches the catalogue", "shop_products" in r["tools"], r)
+    check("the catalogue answer carries numbers and starts nothing", bool(re.search(r"\d{3,}", r["said"])) and not (set(r["tools"]) & (FILMS | {"plan_video"})), r["said"])
 
 print("\n" + ("All checks passed." if not fails else f"{fails} check(s) failed."))
 sys.exit(fails)

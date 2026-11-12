@@ -46,6 +46,8 @@ are in [STUDIO.md](STUDIO.md).
 - The rail can order results by Sales, and marks products that are out of stock.
 - Ask Ember for products by what matters to a seller: commission, growth, how crowded, stock, price.
 - Pull the rail wider on the Shop tab and each video shows its product's numbers under the poster.
+- Ember can search the product catalogue itself (what sells, what grows, what pays most, by price
+  and category), then find the videos selling one product and set a video up from the best.
 
 **Sturdier**
 - A render survives a page reload: the Film step keeps waiting and wires the clip in when it arrives.

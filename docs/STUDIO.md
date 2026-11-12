@@ -114,10 +114,18 @@ Where it is used:
   a day and stock; wider still, the creator and category. The rail can be pulled to most of the page.
 - Otherwise numbers are shown to the person only when they ask for numbers.
 
-Kaiyros has more that the studio does not read yet: products, sellers and creators lists with
-filters (commission floor, category, price range), a market view, a video's views history, and a
-written hook and summary per video (empty in today's data). Showing Kaiyros data outside this
-studio needs the owner's permission first.
+The product catalogue is read too, straight from Kaiyros with the same sign-in (`kaiyros_get`):
+
+- `shop_products` searches products themselves, hundreds of thousands of them, by 7-day units, growth,
+  commission or all-time units, with a commission floor, a price range and a category.
+- `shop_search` with `product_id` lists the videos that sell one product, most viewed first.
+- So a person can ask "what sells under $25 with at least 15% commission", pick one, and have its
+  best video imported and the video laid out.
+
+Kaiyros has more that the studio does not read yet: sellers (brands) and creators lists, a market
+view (how many products and brands, units sold in 7 days), a video's views history, and a written
+hook and summary per video (empty in today's data). Showing Kaiyros data outside this studio needs
+the owner's permission first.
 
 ## Hard rules (from AGENTS.md)
 
@@ -160,7 +168,7 @@ cleared. The project (files, the cut, captions) is saved on the server.
 - Every turn adds a line to `turns.jsonl` beside the project (what was asked, the tools that ran,
   seconds, tokens). It is for audits and is never shown.
 - Behaviour checks: `python3 server/tests/ember_eval.py` against a second server on port 4181. Nine
-  quick checks; `--slow` adds eight that search, import and listen to real Shop videos and answer a
+  quick checks; `--slow` adds ten that search, import and listen to real Shop videos and answer a
   seller's question from the data. They use the
   model key and never render. Run them after changing the instructions or a tool.
 

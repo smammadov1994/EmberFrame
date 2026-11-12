@@ -680,6 +680,8 @@ def public(p: dict[str, Any], store: Store, shop: bool = False) -> dict[str, Any
     out["id"], out["stage"] = store.project, stage_of(p)
     if not shop:
         out.pop("shop", None)                                # hundreds of Shop rows travel only when they change; the browser keeps its copy
+    out.pop("products", None)                                # the catalogue rows Ember last read: kept for it, not sent to the browser
+    out.pop("hooks", None)
     for a in out["assets"].values():
         a["url"] = base + a["file"] + q
         a["poster_url"] = base + a["poster"] + q if a.get("poster") else None
@@ -882,6 +884,62 @@ def shop_fetch(turn: Turn, sort: str, query: str | None, n: int, download: bool 
                            "It usually clears in a minute. A narrower search (a product type or a brand) answers faster.")
     raise RuntimeError("The Shop data service did not answer" + (f": {m.group(1)}" if m else "."))
 
+_KAIYROS: Any = None
+
+def kaiyros_get(path: str, params: dict[str, Any]) -> dict[str, Any]:
+    """Read Kaiyros Discover directly, with the same sign-in the Shop search uses. Read-only. The sign-in stays inside
+    the data service's own script; nothing about it is returned, logged or shown."""
+    global _KAIYROS
+    if _KAIYROS is None:
+        import importlib.util
+        script = getattr(comfy(), "DISCOVER_SCRIPT", None)
+        if not script or not Path(script).exists():
+            raise RuntimeError("The Shop data service is not set up on this machine.")
+        spec = importlib.util.spec_from_file_location("kaiyros_discover_script", str(script))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)                         # defines functions only; it does nothing until called
+        _KAIYROS = mod
+    k = _KAIYROS
+    try:
+        token = k.id_token()
+        return k.api_get(k.LIVE_API, path, {a: b for a, b in params.items() if b not in (None, "")}, token, k.resolve_account(k.LIVE_API, token, None))
+    except SystemExit as e:                                  # the script reports problems by exiting; say it plainly, without its details
+        why = str(e)
+        raise RuntimeError("The Shop data service needs signing in again." if "sign" in why.lower() or "expired" in why.lower()
+                           else "The Shop data service refused that search." if "API 4" in why else "The Shop data service did not answer.")
+
+def product_row(pr: dict[str, Any]) -> dict[str, Any]:
+    """One product from the catalogue, in the same words a Shop video's product uses."""
+    row = shop_row({"product": pr})
+    pm = pr.get("metrics") or {}
+    out = {k: row.get(k) for k in ("product", "product_id", "price", "price_was", "units_7d", "revenue_7d", "sales_trend_pct", "sold_total", "rating", "reviews",
+                                   "videos_selling", "creators_selling", "stock", "commission_pct", "seller", "category", "category_path", "image")}
+    if out["sales_trend_pct"] is None and pm.get("growth_pct") is not None:
+        out["sales_trend_pct"] = round(float(pm["growth_pct"]))
+    if out["revenue_7d"] is None and pm.get("gmv_7d"):
+        out["revenue_7d"] = round(float(pm["gmv_7d"]))
+    return out
+
+def t_shop_products(turn: Turn, query: str | None = None, sort: str = "units", min_commission: float | None = None, category: str | None = None,
+                    price_min: float | None = None, price_max: float | None = None, n: int = 20) -> dict[str, Any]:
+    """Search the product catalogue itself (not videos): what sells, what is growing, what pays the most commission."""
+    order = {"units": "units_7d", "growth": "growth", "commission": "commission", "total": None}.get(sort, "units_7d")
+    n = max(1, min(int(n or 20), 50))
+    data = kaiyros_get("/v1/creator-discovery/products", {"q": (query or "").strip() or None, "sort": order, "limit": n,
+                                                          "commission_min": min_commission, "category": category,
+                                                          "price_min": price_min, "price_max": price_max})
+    rows = [product_row(x) for x in (data.get("products") or [])][:n]
+    with turn.store.lock:
+        p = turn.project()
+        p["products"] = {"query": query, "sort": sort, "rows": rows}
+        turn.commit(p)
+    keys = ("product_id", "product", "price", "units_7d", "revenue_7d", "sales_trend_pct", "commission_pct", "rating", "reviews", "videos_selling",
+            "creators_selling", "stock", "seller", "category")
+    return {"found": len(rows), "more": bool(data.get("next_cursor")),
+            "products": [{k: r[k] for k in keys if r.get(k) not in (None, "", [])} for r in rows],
+            "note": "These are products from the whole catalogue, ranked by the data service. A missing field means the service has no figure for it; do not fill it in. "
+                    "To make a video for one, call shop_search with its product_id to get the videos that already sell it, then import the best one and lay the video out."}
+
 def shop_row(v: dict[str, Any]) -> dict[str, Any]:
     """One Kaiyros Discover video as the studio keeps it: the video, how it is doing, and the product it sells
     (price, sales, how sales are moving, how crowded it is, stock, commission, reviews)."""
@@ -941,12 +999,17 @@ RANKS = {"revenue": "revenue_7d", "units": "units_7d", "growth": "sales_trend_pc
 
 def t_shop_search(turn: Turn, sort: str = "trending", query: str | None = None, n: int = 8, rank_by: str | None = None,
                   in_stock: bool = False, min_commission: float | None = None, max_videos_selling: int | None = None,
-                  max_price: float | None = None, category: str | None = None) -> dict[str, Any]:
+                  max_price: float | None = None, category: str | None = None, product_id: str | None = None) -> dict[str, Any]:
     n = max(1, min(int(n), 1000))                           # the data service pages 100 at a time; a few hundred take seconds
     sort = sort if sort in ("top", "latest", "trending") else "trending"
     narrowing = bool(rank_by in RANKS or in_stock or min_commission or max_videos_selling or max_price or category)
-    res, used, got = shop_fetch(turn, sort, query, max(n, 100) if narrowing else n)   # narrowing needs a pool to choose from
-    rows = [shop_row(v) for v in json.loads(Path(res["videos_json"]).read_text())]
+    if str(product_id or "").strip():                        # the videos that sell one product, most viewed first
+        data = kaiyros_get("/v1/creator-discovery/videos", {"product_id": str(product_id).strip(), "sort": "views", "limit": min(n, 100)})
+        rows, used, got = [shop_row(v) for v in (data.get("videos") or [])], "top", n
+        sort = "top"
+    else:
+        res, used, got = shop_fetch(turn, sort, query, max(n, 100) if narrowing else n)   # narrowing needs a pool to choose from
+        rows = [shop_row(v) for v in json.loads(Path(res["videos_json"]).read_text())]
     if used != sort and sort == "top":
         rows.sort(key=lambda r: -(r["views"] or 0))             # asked for the most viewed: order what came back by views
     pool = len(rows)
@@ -1586,7 +1649,15 @@ TOOLS: list[dict[str, Any]] = [
    "such as 'skincare'). Ranking and narrowing work on the videos fetched for the query, so give a query when you can. Results also appear in the user's Shop tab.",
   "input_schema": {"type": "object", "properties": {"sort": {"type": "string", "enum": ["trending", "top", "latest"]}, "query": {"type": "string"},
      "rank_by": {"type": "string", "enum": ["revenue", "units", "growth", "commission", "momentum", "least_crowded"]}, "in_stock": {"type": "boolean"},
-     "min_commission": {"type": "number"}, "max_videos_selling": {"type": "integer"}, "max_price": {"type": "number"}, "category": {"type": "string"}, "n": {"type": "integer", "description": "How many, 1 to 300. Ask for 100 when the person wants to see or browse videos; thousands exist, so a query narrows better than a bigger number."}}}},
+     "min_commission": {"type": "number"}, "max_videos_selling": {"type": "integer"}, "max_price": {"type": "number"}, "category": {"type": "string"},
+     "product_id": {"type": "string", "description": "List the videos that sell this one product (an id from shop_products or from a video), most viewed first."}, "n": {"type": "integer", "description": "How many, 1 to 300. Ask for 100 when the person wants to see or browse videos; thousands exist, so a query narrows better than a bigger number."}}}},
+ {"name": "shop_products", "fn": t_shop_products, "label": "Searching the product catalogue",
+  "description": "Search the product catalogue itself, hundreds of thousands of TikTok Shop products, not only the ones with a popular video. Use it when the person asks what to sell, "
+   "for products by sales, growth or commission, or for products in a price range or category. sort: 'units' (sold in the last 7 days), 'growth', 'commission' or 'total' (all-time units). "
+   "min_commission is a percent. price_min and price_max are dollars. category is a category name such as 'Skincare'. Returns up to 50 products with price, 7-day units and revenue, "
+   "growth, commission, rating, stock and how many videos and creators sell each.",
+  "input_schema": {"type": "object", "properties": {"query": {"type": "string"}, "sort": {"type": "string", "enum": ["units", "growth", "commission", "total"]},
+    "min_commission": {"type": "number"}, "category": {"type": "string"}, "price_min": {"type": "number"}, "price_max": {"type": "number"}, "n": {"type": "integer"}}}},
  {"name": "shop_import", "fn": t_shop_import, "label": "Bringing in the reference",
   "description": "Download videos from the last shop_search into the library as references, by id. A reference shows how a selling video is built; it can be watched, transcribed and looked at, but never exported.",
   "input_schema": {"type": "object", "properties": {"video_ids": {"type": "array", "items": {"type": "string"}}}, "required": ["video_ids"]}},
@@ -1718,7 +1789,7 @@ SYSTEM = """You are Ember, the editor and producer inside Emberframe, a studio w
 What you can do
 - Edit the final video: trim, split, cut ranges, reorder, captions, volume. Your edits show at once in the Final video node.
 - Clean up footage, write captions from the speech, listen to and look at any clip.
-- Search TikTok Shop for what is selling and bring selling videos in as references.
+- Search TikTok Shop for what is selling and bring selling videos in as references. Search the product catalogue too (shop_products): what sells, what is growing, what pays the most commission, in a price range or a category; then list the videos that sell one product (shop_search with product_id).
 - Film new clips on our GPUs, and record voice lines with the voice model.
 - Clip a selling video: film the person's own avatar presenting the same product, from a script you write.
 - Put the person's own voice on a video: record_voice opens a recorder in the studio and their take lands on the audio track.
