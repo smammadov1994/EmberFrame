@@ -99,6 +99,14 @@
   }
   /* ---------- media on the canvas, and the final video ---------- */
   function finalNode() { return G.nodes.filter(function (n) { return n.type === 'final'; })[0] || null; }
+  function finalShown() {                                     // the final video only appears once there is something to put in it (or it was asked for)
+    var fin = finalNode(), p = P(); if (!fin || !p) return false;
+    if (G.open === fin.id || p.tracks.video.length || p.tracks.audio.length) return true;
+    return G.nodes.some(function (n) {
+      if (n.type === 'film') return !!(n.d.film && n.d.film.state);
+      var a = n.type === 'media' && p.assets[n.d.asset]; return !!a && a.kind !== 'image' && !a.reference;   // a clip or a sound of your own can be wired in
+    });
+  }
   function mediaNode(asset) { return G.nodes.filter(function (n) { return n.type === 'media' && n.d.asset === asset; })[0] || null; }
   function wired(a, b) { return G.wires.some(function (w) { return w.from === a && w.to === b; }); }
   function inCut(asset) { var p = P(); return p.tracks.video.concat(p.tracks.audio).some(function (c) { return c.asset === asset; }); }
@@ -328,12 +336,14 @@
   }
   function room() {                                          // the part of the board not covered by the open panel
     var r = view.getBoundingClientRect(), phone = window.innerWidth <= 760, pw = !panel.hidden && !phone ? panel.offsetWidth + 24 : 0;
+    if (r.width - pw < NW + 40) pw = 0;                        // the panel covers nearly the whole board (a narrow window): centre on the board itself
     return { w: r.width - pw, h: phone && !panel.hidden ? r.height * 0.42 : r.height, left: r.left, top: r.top };
   }
   function toWorld(cx, cy) { var r = view.getBoundingClientRect(); return { x: (cx - r.left - V.x) / V.k, y: (cy - r.top - V.y) / V.k }; }
   function focusOn(n) { var r = room(); V.x = r.w / 2 - (n.x + NW / 2) * V.k; V.y = r.h / 2 - (n.y + NH / 2) * V.k; apply(true); keep(); }
   function fit() {
-    var r = room(), xs = G.nodes.map(function (n) { return n.x; }), ys = G.nodes.map(function (n) { return n.y; });
+    var seen = G.nodes.filter(function (n) { return n.type !== 'final' || finalShown(); }); if (!seen.length) seen = G.nodes;
+    var r = room(), xs = seen.map(function (n) { return n.x; }), ys = seen.map(function (n) { return n.y; });
     var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs) + NW, y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys) + NH;
     V.k = clamp(Math.min((r.w - 96) / (x1 - x0), (r.h - 96) / (y1 - y0)), 0.05, 1.15);   // as small as it takes: Fit always shows every node
     V.x = r.w / 2 - (x0 + x1) / 2 * V.k; V.y = r.h / 2 - (y0 + y1) / 2 * V.k; apply(true); keep();
@@ -429,6 +439,7 @@
     e.style.left = n.x + 'px'; e.style.top = n.y + 'px'; box.textContent = '';
     var cls = 'gn ' + n.type + (n.id === G.open ? ' open' : '') + (e.classList.contains('new') ? ' new' : '') + (e.classList.contains('acting') ? ' acting' : '');
     if (n.type === 'final') {
+      e.hidden = !finalShown();
       var clips = p.tracks.video.length;
       e.className = cls + (clips ? ' has' : ''); ic.style.backgroundImage = ''; ic.innerHTML = svg(I.play);
       small.textContent = 'Final video'; b.textContent = clips ? 'Your video' : 'Nothing wired in yet';
