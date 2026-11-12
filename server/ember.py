@@ -1589,6 +1589,18 @@ def api_tools() -> list[dict[str, Any]]:
     return [{"name": t["name"], "description": t["description"], "input_schema": t["input_schema"],
              "eager_input_streaming": True} for t in TOOLS]
 
+def plain(out: Any) -> str | None:
+    """Why a step failed, worded for the person. Our own messages go through as written; anything else stays vague.
+    Addresses never reach the browser."""
+    s = out if isinstance(out, str) else ""
+    m = re.match(r"^([A-Za-z_]\w*): (.*)$", s, re.S)
+    if m and m.group(1) in ("ValueError", "RuntimeError"):
+        s = m.group(2)                                       # raised by this file, written to be read
+    elif m and re.search(r"(Error|Exception|Timeout|Exit)$", m.group(1)):
+        s = "That did not work. Try again in a moment."      # a library's own error: it may name machines or paths
+    s = re.sub(r"https?://\S+|\b\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?\b|/(?:Users|home|private|tmp)/\S+", "…", s)
+    return s[:160] or None
+
 def run_tool(turn: Turn, name: str, args: Any) -> tuple[Any, bool]:
     """Returns (content for the model, is_error). Inputs are untrusted model output: check them."""
     t = TOOL_BY_NAME.get(name)
@@ -1737,7 +1749,7 @@ def run_claude(turn: Turn, text: str) -> str:
             turn.emit({"type": "step", "id": sid, "name": b.name, "label": TOOL_BY_NAME.get(b.name, {}).get("label", b.name), "state": "run"})
             out, err = run_tool(turn, b.name, b.input)
             turn.emit({"type": "step", "id": sid, "state": "fail" if err else "ok",
-                       "detail": (out if isinstance(out, str) else "")[:160] if err else None})
+                       "detail": plain(out) if err else None})
             results.append({"type": "tool_result", "tool_use_id": b.id, "content": out, **({"is_error": True} if err else {})})
         messages.append({"role": "user", "content": results})
         said.append("\n")
@@ -1791,7 +1803,7 @@ def run_openai(turn: Turn, text: str) -> str:
             turn.emit({"type": "step", "id": sid, "name": c.name, "label": TOOL_BY_NAME.get(c.name, {}).get("label", c.name), "state": "run"})
             out, err = run_tool(turn, c.name, args)
             turn.emit({"type": "step", "id": sid, "state": "fail" if err else "ok",
-                       "detail": (out if isinstance(out, str) else "")[:160] if err else None})
+                       "detail": plain(out) if err else None})
             if isinstance(out, list):                          # frames: shown to the model in the next message
                 frames += [{"type": "input_text", "text": b["text"]} if b["type"] == "text" else
                            {"type": "input_image", "image_url": "data:image/jpeg;base64," + b["source"]["data"]} for b in out]
@@ -1812,7 +1824,7 @@ def run_offline(turn: Turn, text: str) -> str:
         sid = new_id("s")
         turn.emit({"type": "step", "id": sid, "name": name, "label": TOOL_BY_NAME[name]["label"], "state": "run"})
         out, err = run_tool(turn, name, args)
-        turn.emit({"type": "step", "id": sid, "state": "fail" if err else "ok", "detail": out[:160] if err and isinstance(out, str) else None})
+        turn.emit({"type": "step", "id": sid, "state": "fail" if err else "ok", "detail": plain(out) if err else None})
         return None if err else (json.loads(out) if isinstance(out, str) else out)
     nums = [float(x) for x in re.findall(r"(\d+(?:\.\d+)?)\s*(?:s|sec|seconds)?\b", t)]
     if re.search(r"\b(back|return|go|see|show)\b.{0,24}\beditor\b", t):
@@ -1905,6 +1917,8 @@ def flow_step(turn: Turn, label: str) -> Callable[..., None]:
 def flow_script(turn: Turn, args: dict[str, Any]) -> None:
     """Read what the person chose, learn what can be learned about it, and write the line and the shot."""
     subj, cre = args.get("subject") or {}, args.get("creator") or {}
+    if subj.get("kind") not in ("shop", "asset", "reference", "idea"):
+        raise ValueError("Say what the video is about first: pick a product, one of your files, or describe it.")
     make = args.get("make") if args.get("make") in FLOW_MAKES else "clip"
     seconds = max(5.2, min(float(args.get("seconds") or 8), 15.0))
     out: dict[str, Any] = {"type": "flow_script", "product_asset": None, "reference_asset": None}
@@ -2417,7 +2431,7 @@ async def action(req: Request, x_ember_user: str | None = Header(None)):
         sid = new_id("s")
         turn.emit({"type": "step", "id": sid, "name": name, "label": TOOL_BY_NAME[name]["label"], "state": "run"})
         out, err = run_tool(turn, name, body.get("args") or {})
-        turn.emit({"type": "step", "id": sid, "state": "fail" if err else "ok", "detail": out[:200] if err and isinstance(out, str) else None})
+        turn.emit({"type": "step", "id": sid, "state": "fail" if err else "ok", "detail": plain(out) if err else None})
         if not err and name in ("remove_silences", "auto_captions"):
             with s.lock:
                 s.snapshot(s.load(), TOOL_BY_NAME[name]["label"].replace("Cutting dead air", "Clean up").replace("Writing captions", "Captions"), force=True)

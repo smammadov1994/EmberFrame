@@ -96,7 +96,9 @@ either order; both come before "What to make".
 - Every export carries the AI-generated label in the file metadata (`comment`, `description`).
 - An AI presenter states product facts and never claims to have used the product.
 - No invented numbers. Views and sales are shown only when the person asks for numbers.
-- Users never reach the GPU or see machine addresses; errors shown in the browser are plain.
+- Users never reach the GPU or see machine addresses. A failed step shows our own message as
+  written; any other error is shown as "That did not work", with addresses and paths removed
+  (`plain()` in `server/ember.py`).
 
 ## Where things live
 
@@ -115,9 +117,9 @@ project (files, the cut, captions) is saved on the server.
 ## Testing without spending
 
 - The smoke test: start a second server (`EMBER_PORT=4181 uv run server/ember.py`), then
-  `python3 server/tests/smoke.py`. Twelve checks that spend nothing (served pages, projects, refusals,
-  stop, approvals, no render without an approved price, key and data files not served). Add `--model`
-  for two more that use the model key (script writing, and that a described video is not rendered
+  `python3 server/tests/smoke.py`. Fourteen checks that spend nothing (served pages, projects, refusals,
+  stop, approvals, no render without an approved price, plain error wording, key and data files not
+  served). Add `--model` for two more that use the model key (script writing, and that a described video is not rendered
   from chat).
 
 - A second server for tests: `EMBER_PORT=4181 uv run server/ember.py`. Send chat or actions to it

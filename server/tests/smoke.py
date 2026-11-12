@@ -74,6 +74,13 @@ ev = events(body)
 check("filming without an approved price is refused, and nothing renders",
       code == 200 and any(e.get("type") == "error" for e in ev) and not any(e.get("type") == "flow_film" and e.get("rendered") for e in ev), body[-300:])
 
+code, body = call("/api/action", {"name": "render", "args": {}}, pid, timeout=120)
+fail = [e for e in events(body) if e.get("type") == "step" and e.get("state") == "fail"]
+check("exporting an empty video fails with a plain reason", bool(fail) and "Error" not in str(fail[0].get("detail")) and "nothing" in str(fail[0].get("detail")).lower(), body[-300:])
+
+code, body = call("/api/action", {"name": "flow_script", "args": {}}, pid, timeout=60)
+check("the script step refuses to write about nothing", any(e.get("type") == "error" for e in events(body)) and not any(e.get("type") == "flow_script" for e in events(body)), body[-300:])
+
 code, body = call("/api/chat", {"text": ""}, pid)
 check("an empty chat message is refused (400)", code == 400, code)
 

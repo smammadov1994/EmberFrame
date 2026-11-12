@@ -1097,6 +1097,7 @@
   function renderFormat(box, n) {
     var d = n.d, c = ctx(n.id), cr = c.creator && c.creator.d.creator, nobody = !cr || cr.kind === 'none', opts = el('div', { class: 'f-opts' }), sub = c.subject.d.subject;
     var ownClip = sub.kind === 'asset' && has(sub.asset) && P().assets[sub.asset].kind === 'video';   // their own footage can go straight to the editor
+    if (!d.make && sub.kind === 'idea') { d.make = 'free'; d.idea = d.idea || sub.text; }   // the video was described in words: that description is the shot, ready to edit
     if (!c.creator) box.appendChild(el('p', { class: 'f-note', text: 'No one on camera is connected, so this will be product only. Wire an "On camera" node into this one to put a person in it.' }));
     MAKES.forEach(function (m, k) {
       var off = m.person && nobody;
