@@ -47,6 +47,16 @@ loop, the price and the wiring were checked with stand-in clips.
 The filmed clip appears to the right of Film it and is wired into Final video. New things always
 land to the right; Final video stays last.
 
+**One take per Film it step.** Filming again from the same step (Film another take, or after the
+script changed) replaces what that step filmed before: when the new clip lands, the old one leaves
+Final video and the board, and the new one takes its place in the order. The old clip stays in
+Media, and the cut before the change is kept in Versions. The panel says this before the button is
+pressed. In a commercial, only the shots whose words changed are filmed again, from the first
+changed shot on, at the price of those shots. Checked with stand-in clips, not with a real render.
+
+**A voiceover belongs to its clip.** A library voice or your own recording laid over a clip moves
+with that clip when the order changes, and leaves the video when the clip does.
+
 ## Rules the board enforces
 
 Order is subject, on camera, what to make, script, voice, film. Subject and on camera may come in

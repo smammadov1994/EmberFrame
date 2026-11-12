@@ -314,10 +314,15 @@ _locks: dict[str, threading.RLock] = {}
 def normalize(p: dict[str, Any]) -> None:
     t = 0.0
     keep = []
+    was: dict[str, float] = {}                               # where each clip started before this change, and where it starts now:
+    now: dict[str, float] = {}                               # a voiceover moves with the clip it was laid over, and leaves the video with it
     for c in p["tracks"]["video"]:
         a = p["assets"].get(c.get("asset"))
         if not a or a["kind"] != "video":
             continue
+        if c["asset"] not in was and isinstance(c.get("start"), (int, float)):
+            was[c["asset"]] = float(c["start"])
+        now.setdefault(c["asset"], round(t, 3))
         c["in"] = round(max(0.0, min(float(c.get("in", 0)), a["duration"] - 0.1)), 3)
         c["out"] = round(max(c["in"] + 0.1, min(float(c.get("out", a["duration"])), a["duration"])), 3)
         c["volume"] = max(0.0, min(float(c.get("volume", 1)), 2.0))
@@ -333,7 +338,11 @@ def normalize(p: dict[str, Any]) -> None:
             continue
         c["in"] = round(max(0.0, min(float(c.get("in", 0)), a["duration"] - 0.05)), 3)
         c["out"] = round(max(c["in"] + 0.05, min(float(c.get("out", a["duration"])), a["duration"])), 3)
-        c["start"] = round(max(0.0, float(c.get("start", 0))), 3)
+        over = (a.get("meta") or {}).get("voiceover_for")
+        if over and over not in now:
+            continue                                         # its clip is no longer in the video
+        shift = now[over] - was[over] if over and over in was else 0.0
+        c["start"] = round(max(0.0, float(c.get("start", 0)) + shift), 3)
         c["volume"] = max(0.0, min(float(c.get("volume", 1)), 2.0))
         end = max(end, c["start"] + c["out"] - c["in"])
         keep.append(c)
@@ -2380,6 +2389,8 @@ def flow_film(turn: Turn, args: dict[str, Any]) -> None:
     res = t_generate_clip(turn, prompt=prompt, seconds=seconds, reference_images=refs or None,
                           quality="high" if args.get("look") == "cinematic" else "standard",   # more steps for a commercial: slower, same price
                           name=str(args.get("name") or "New clip")[:50], add_to_timeline=True)
+    if res.get("rendered"):
+        flow_place(turn, res["asset"], args.get("replaces"), args.get("after"))
     voice = args.get("voice") or {}
     heard: dict[str, Any] = {}
     if res.get("rendered") and voice.get("kind") in ("fish", "own"):   # the voiceover goes under the new clip
@@ -2402,6 +2413,30 @@ def flow_film(turn: Turn, args: dict[str, Any]) -> None:
             turn.commit(p)
             turn.store.snapshot(turn.project(), "Guided video", force=True)
     turn.emit({"type": "flow_film", **{k: res.get(k) for k in ("rendered", "asset", "seconds", "cost", "reason")}, **heard})
+
+def flow_place(turn: Turn, asset: str, replaces: Any, after: Any) -> None:
+    """A Film step holds one take in the video. The new clip takes the place of the clips that step filmed
+    before (`replaces`: they stay in the library), or sits right after the shot before it (`after`)."""
+    gone = {str(x) for x in replaces if x} if isinstance(replaces, list) else set()
+    gone.discard(asset)
+    if not gone and not after:
+        return
+    with turn.store.lock:
+        p = turn.project()
+        video = p["tracks"]["video"]
+        new = next((c for c in video if c["asset"] == asset), None)
+        if not new or not (any(c["asset"] in gone for c in video) or any(c["asset"] == str(after) for c in video)):
+            return
+        if any(c["asset"] in gone for c in video):
+            turn.store.snapshot({**p, "tracks": {**p["tracks"], "video": [c for c in video if c is not new]}}, "Before the new take", force=True)
+        rest = [c for c in video if c is not new]
+        at = next((i for i, c in enumerate(rest) if c["asset"] in gone), None)
+        if at is None:
+            at = max(i for i, c in enumerate(rest) if c["asset"] == str(after)) + 1
+        rest.insert(at, new)
+        p["tracks"]["video"] = [c for c in rest if c["asset"] not in gone]
+        p["tracks"]["audio"] = [c for c in p["tracks"]["audio"] if c["asset"] not in gone]   # their voiceovers go with them (normalize)
+        turn.commit(p)
 
 def hear_back(turn: Turn, asset: str, line: str) -> dict[str, Any]:
     """What a filmed clip actually says, and how much of the script is in it. The video model

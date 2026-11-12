@@ -5,6 +5,14 @@ are in [STUDIO.md](STUDIO.md).
 
 ## 12 November 2026
 
+**Filming again**
+- A Film it step keeps one take in Final video. Film another take, or filming after the script
+  changed, replaces the earlier clips from that step instead of adding to them. They stay in Media.
+  Before this, a re-filmed commercial left five or six shots in the video.
+- A commercial films again only from the first shot whose words changed, and charges for those.
+- A voiceover moves with its clip and leaves the video with it. Before this, taking a clip out
+  left its voice playing over whatever came next.
+
 **Ember's answers and the Shop tab**
 - When Ember looks up products, the Shop tab switches to what it found. The products its answer
   names go to the top, marked "In Ember's answer". The buttons under that answer are about the

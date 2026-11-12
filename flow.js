@@ -243,6 +243,8 @@
         rf.d.film = ofAll > 1 && shotsIn.length < ofAll
           ? { state: 'fail', assets: shotsIn, reason: shotsIn.length + ' of ' + ofAll + (shotsIn.length === 1 ? ' shots is' : ' shots are') + ' filmed and in your video. The page was reloaded, so the rest were not started.' }
           : { state: 'done', asset: id, assets: ofAll > 1 ? shotsIn : null };
+        var rsc = ctx(rf.id).script, rsh = rsc && rsc.d.script && rsc.d.script.shots, rmade = rf.d.made || [];
+        rf.d.made = rmade.concat([{ asset: id, text: rsh ? rsh[rmade.length] || '' : (rsc && rsc.d.script && rsc.d.script.shot) || '' }]); rf.d.old = [];
         var got = addMedia(id, rf.x + NW + GAP, rf.y); G.wires.push({ from: rf.id, to: got.id });
         if (fin.x < got.x + NW + GAP) fin.x = got.x + NW + GAP;
         return;
@@ -1359,7 +1361,8 @@
   function film(n) {
     var c = ctx(n.id), f = c.format.d, sc = c.script.d.script, sub = c.subject.d.subject, cr = (c.creator && c.creator.d.creator) || { kind: 'none' }, vo = (c.voice && c.voice.d.voice) || { kind: 'model' };
     var shots = sc.shots && sc.shots.length ? sc.shots.slice() : null, total = shots ? shots.length : 1;
-    var got = shots ? shotsKept(n, total) : [], why = '', said = null, look = shots ? 'cinematic' : (f.look || (cr.kind === 'none' ? 'cinematic' : 'phone'));
+    var tk = takes(n, sc), got = tk.kept.map(function (m) { return m.asset; }), first = got.length, why = '', said = null, look = shots ? 'cinematic' : (f.look || (cr.kind === 'none' ? 'cinematic' : 'phone'));
+    n.d.made = tk.kept.slice(); n.d.old = tk.old.slice();   // the clips to take out are remembered until a new one has taken their place
     n.d.film = { state: 'run', note: 'Sending it to our GPU', t0: Date.now(), assets: shots ? got.slice() : null, total: total }; refresh(n);
     clearInterval(filmTick);
     filmTick = setInterval(function () { var t = $('#f-film-time'); if (t && n.d.film && n.d.film.state === 'run') t.textContent = Math.round((Date.now() - n.d.film.t0) / 1000) + 's'; }, 1000);
@@ -1371,13 +1374,19 @@
         name: shots ? (sc.name || 'Commercial') + ' ' + (i + 1) : sc.name, voice: shots ? { kind: 'model' } : vo, look: look,
         creator_asset: cr.kind === 'avatar' ? cr.asset : null, creator_text: cr.kind === 'describe' ? cr.text : '',
         product_asset: sc.product_asset || (sub.kind === 'asset' && has(sub.asset) && P().assets[sub.asset].kind === 'image' ? sub.asset : null),
+        replaces: i === first ? n.d.old : [], after: i ? got[i - 1] : null,   // one take per Film step in the final video: the new clip takes the old one's place
         fresh: false, approved: shots ? cost(SHOT) : cost(f.seconds) }, function (ev) {
         if (ev.type === 'progress') note(ev.note, i);
         else if (ev.type === 'flow_film') { asset = ev.rendered ? ev.asset : null; why = ev.rendered ? '' : (ev.reason || 'The render did not finish.'); if (!shots) said = ev.heard !== undefined ? { heard: ev.heard, match: ev.match } : null; }
         else if (ev.type === 'error') why = ev.message;
       }).catch(function () { why = 'The connection dropped.'; }).then(function () {
         if (!asset) return;                                   // this one did not film: stop here, keep what was filmed
-        got.push(asset);
+        got.push(asset); n.d.made = (n.d.made || []).concat([{ asset: asset, text: shots ? shots[i] : sc.shot }]);
+        if (i === first && n.d.old && n.d.old.length) {
+          var gone = n.d.old; n.d.old = [];
+          gone.filter(inCut).forEach(function (a) { S.cut.remove(a); });   // an older server does not take them out itself
+          G.nodes = G.nodes.filter(function (m) { return m.type !== 'media' || gone.indexOf(m.d.asset) < 0; });   // the old take leaves the board too; it is still in Media
+        }
         if (shots && n.d.film) { n.d.film.assets = got.slice(); sync(); keep(); draw(); }   // each shot is wired in as it lands, and a reload knows how far it got
         if (i + 1 < total) return one(i + 1);
       });
@@ -1391,13 +1400,21 @@
       sync(); keep(); refresh(n);
     });
   }
-  function shotsKept(n, total) {                             // shots filmed in a try that stopped part way: they are not filmed, or paid for, again
-    var fl = n.d.film, kept = fl && fl.state === 'fail' && fl.assets ? fl.assets.filter(has) : [];
-    return kept.length < total ? kept : [];
+  function takes(n, sc) {                                    // what this step filmed before. kept: shots of a commercial whose words have not changed (not filmed, or paid for, again).
+    var d = n.d, fl = d.film, shots = sc && sc.shots && sc.shots.length ? sc.shots : null, kept = [];   // old: clips a new filming takes out of the final video
+    if (!d.made && fl) d.made = fl.assets ? fl.assets.map(function (a, i) { return { asset: a, text: shots ? shots[i] : '' }; })   // a board saved before takes were tracked
+                              : fl.state === 'done' && fl.asset ? [{ asset: fl.asset, text: sc ? sc.shot : '' }] : [];
+    var made = (d.made || []).filter(function (m) { return has(m.asset); });
+    if (shots) {
+      for (var i = 0; i < made.length && i < shots.length && made[i].text === shots[i]; i++) kept.push(made[i]);
+      if (kept.length === shots.length) kept = [];           // every shot is filmed: filming again is another take of all of it
+    }
+    var old = (d.old || []).concat(made.filter(function (m) { return kept.indexOf(m) < 0; }).map(function (m) { return m.asset; }));
+    return { kept: kept, old: old.filter(function (a, i) { return old.indexOf(a) === i && has(a) && inCut(a); }) };
   }
   function renderFilm(box, n) {
     var d = n.d, st = d.film && d.film.state, p = P(), c = ctx(n.id), f = c.format.d, sc = c.script.d.script, sub = c.subject.d.subject, cr = (c.creator && c.creator.d.creator) || { kind: 'none' }, vo = (c.voice && c.voice.d.voice) || { kind: 'model' };
-    var kept = sc.shots ? shotsKept(n, sc.shots.length).length : 0, left = sc.shots ? sc.shots.length - kept : 0;
+    var tk = st === 'run' ? { kept: [], old: [] } : takes(n, sc), kept = tk.kept.length, left = sc.shots ? sc.shots.length - kept : 0;
     var online = S.status().gpu && S.status().gpu.online, price = sc.shots ? Math.round(cost(SHOT) * left * 100) / 100 : priceOf(f), screen = el('div', { class: 'f-screen' });
     if (st === 'done' && has(d.film.asset)) {
       screen.appendChild(el('video', { src: p.assets[d.film.asset].url, autoplay: '', loop: '', playsinline: '', controls: '' })); screen.firstChild.muted = true;
@@ -1443,6 +1460,8 @@
     } else {
       if (st === 'fail') bill.appendChild(el('p', { class: 'f-note warn', text: d.film.reason }));
       bill.appendChild(el('div', { class: 'f-cost' }, [money(price), el('small', { text: (sc.shots ? (kept ? left + ' of ' + sc.shots.length + ' shots left' : sc.shots.length + ' shots') + ' · about ' + Math.round(left * SHOT) + ' seconds' : f.seconds + ' seconds') + ' · 9:16 · with sound' })]));
+      if (tk.old.length) bill.appendChild(el('p', { class: 'f-note', text: (tk.old.length === 1 ? 'The clip this step filmed before leaves' : 'The ' + tk.old.length + ' clips this step filmed before leave')
+        + ' your final video when the new one lands. ' + (tk.old.length === 1 ? 'It stays' : 'They stay') + ' in Media.' }));
       if (!online) bill.appendChild(el('p', { class: 'f-note warn', text: 'Our GPU is offline right now, so nothing can be filmed. Your board is saved; come back to this node when it is on.' }));
       bill.appendChild(el('div', { class: 'f-foot' }, [
         el('button', { type: 'button', class: 'btn btn-accent btn-lg', disabled: online ? null : '', html: svg(I.film) + (kept ? 'Film the ' + (left === 1 ? 'last shot' : left + ' shots left') : st === 'fail' ? 'Try again' : 'Film it') + ' · ' + money(price), onclick: function () { film(n); } }),

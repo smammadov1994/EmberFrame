@@ -89,8 +89,19 @@
   function A(id) { return P.assets[id]; }
   function clipLen(c) { return c.out - c.in; }
   function layout() {           // same rules as the server's normalize()
-    var t = 0;
-    P.tracks.video.forEach(function (c) { c.start = t; t += clipLen(c); });
+    var t = 0, was = {}, now = {};                           // a voiceover moves with the clip it was laid over, and leaves the video with it
+    P.tracks.video.forEach(function (c) {
+      if (was[c.asset] === undefined && typeof c.start === 'number') was[c.asset] = c.start;
+      if (now[c.asset] === undefined) now[c.asset] = t;
+      c.start = t; t += clipLen(c);
+    });
+    P.tracks.audio = P.tracks.audio.filter(function (c) {
+      var a = P.assets[c.asset], over = a && a.meta && a.meta.voiceover_for;
+      if (!over) return true;
+      if (now[over] === undefined) return false;
+      if (was[over] !== undefined) c.start = Math.max(0, Math.round((c.start + now[over] - was[over]) * 1000) / 1000);
+      return true;
+    });
     var end = t;
     P.tracks.audio.forEach(function (c) { end = Math.max(end, c.start + clipLen(c)); });
     P.tracks.captions.sort(function (a, b) { return a.start - b.start; });
