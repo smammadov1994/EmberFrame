@@ -87,6 +87,14 @@ if not r["workflow"]:                                        # it may first ask 
 check("a commercial is laid out as the Commercial format, not rendered", bool(r["workflow"]) and r["workflow"].get("make") == "commercial" and not r["approval"]
       and not (set(r["tools"]) & {"generate_clip", "shop_search", "shop_import"}), r)
 
+# 2c. a clip is filmed and they wanted several camera shots: the same subject laid out as a commercial, nothing rendered from chat
+board = ("Step 1, The subject: a vacuum product (an idea, no product)\nStep 2, On camera: No one on camera\n"
+         "Step 3, What to make: Product showcase · 8 seconds\nStep 4, The script: In one continuous shot a cordless vacuum glides over an oak floor · No speech\n"
+         "Step 6, Film it: Filmed\nFinal video: 1 clip\nNo step is waiting.")
+r = say(p, "the film I made I wanted multiple camera shots of the vacuum", board)
+check("several camera shots asked for after filming: laid out as a commercial, nothing rendered", bool(r["workflow"]) and r["workflow"].get("make") == "commercial"
+      and not r["approval"] and not (set(r["tools"]) & (FILMS | {"shop_search", "shop_import"})), r)
+
 # 3. the board says a step is waiting: point at it, change nothing
 board = ("Step 1, The subject: a dinosaur walking through a city · An idea (an idea, no product)\n"
          "Step 2, On camera: not answered yet\nFinal video: 0 clips\nWaiting on the person: step 2, on camera")
