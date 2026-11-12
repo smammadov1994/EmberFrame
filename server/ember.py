@@ -900,6 +900,7 @@ def shop_row(v: dict[str, Any]) -> dict[str, Any]:
             "views_24h": m.get("views_delta_24h"), "saves": m.get("saves_total"), "shares": m.get("shares_total"),
             "comments": m.get("comments_total"), "posted": str(v.get("posted_at") or "")[:10] or None,
             "hashtags": [str(h)[:30] for h in ((v.get("taxonomy") or {}).get("hashtags") or [])][:6],
+            "hook": str((v.get("content") or {}).get("hook") or "")[:220] or None,   # the data service's own note of how the video opens, when it has one
             "product": (pr.get("title") or "")[:110] or None, "product_id": str(pr["id"]) if pr.get("id") else None,
             "price": (pr.get("price") or {}).get("current_amount"),
             "price_was": (pr.get("price") or {}).get("original_amount"),
@@ -1050,6 +1051,8 @@ def t_find_hooks(turn: Turn, query: str | None = None, count: int = 4, about: st
         if turn.stop.is_set() or heard >= count:
             break
         vid = str(r["id"])
+        if vid not in known and r.get("hook"):
+            known[vid] = r["hook"]                           # already written down by the data service: no need to fetch and listen
         if vid not in known:
             turn.emit({"type": "progress", "note": f"Listening to how video {i + 1} opens"})
             try:

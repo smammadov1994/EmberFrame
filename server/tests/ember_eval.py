@@ -117,5 +117,13 @@ if SLOW:
     check("a hook request studies real Shop videos first", "find_hooks" in r["tools"], r)
     check("the hook answer quotes what it heard", "“" in r["said"] or '"' in r["said"], r["said"])
 
+if SLOW:
+    # 9. a seller's question is answered from the data, with the numbers asked for
+    p = project("Eval: seller question")
+    r = say(p, "find skincare products with at least 15% commission that are growing and not crowded. tell me the best three with the numbers.")
+    check("a seller's question runs a Shop search", "shop_search" in r["tools"], r)
+    check("a seller's question is answered with commission and sales numbers", "%" in r["said"] and bool(re.search(r"\d{2,}", r["said"])), r["said"])
+    check("a seller's question starts no video and no render", not (set(r["tools"]) & (FILMS | {"plan_video", "shop_import"})) and not r["approval"], r)
+
 print("\n" + ("All checks passed." if not fails else f"{fails} check(s) failed."))
 sys.exit(fails)

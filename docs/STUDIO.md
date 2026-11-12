@@ -160,7 +160,8 @@ cleared. The project (files, the cut, captions) is saved on the server.
 - Every turn adds a line to `turns.jsonl` beside the project (what was asked, the tools that ran,
   seconds, tokens). It is for audits and is never shown.
 - Behaviour checks: `python3 server/tests/ember_eval.py` against a second server on port 4181. Nine
-  quick checks; `--slow` adds five that search, import and listen to real Shop videos. They use the
+  quick checks; `--slow` adds eight that search, import and listen to real Shop videos and answer a
+  seller's question from the data. They use the
   model key and never render. Run them after changing the instructions or a tool.
 
 ## Testing without spending
