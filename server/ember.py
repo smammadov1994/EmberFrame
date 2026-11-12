@@ -914,6 +914,82 @@ def t_shop_search(turn: Turn, sort: str = "trending", query: str | None = None, 
                        ". Tell the person in a few words; do not present these as the full '" + sort + "' list.")
     return out
 
+def hook_of(turn: Turn, c: Any, yt: str, row: dict[str, Any]) -> str:
+    """The first words spoken in a selling video. It is fetched, its first seconds are listened to, and nothing is kept."""
+    stem = turn.store.dir / f"hook_{row['id']}"
+    try:
+        run([yt, "-q", "--no-warnings", "--no-playlist", "--max-filesize", "200M", "--merge-output-format", "mp4",
+             "-f", "b[acodec!=none][ext=mp4]/b[acodec!=none]/bv*+ba/b", "-o", str(stem) + ".%(ext)s", row["url"]], 180)
+        got = sorted(turn.store.dir.glob(f"hook_{row['id']}.*"))
+        if not got:
+            return ""
+        head = turn.store.dir / f"hook_{row['id']}_head.m4a"
+        run(["ffmpeg", "-v", "error", "-y", "-i", str(got[0]), "-t", "12", "-vn", "-ac", "1", "-c:a", "aac", "-b:a", "96k", str(head)], 120)
+        if not head.exists():
+            return ""
+        res = c.transcribe(str(head), wait_seconds=45)
+        while res.get("state") == "running" and not turn.stop.is_set():
+            res = c.job_status(res["job_id"], wait_seconds=45)
+        if res.get("state") != "done":
+            return ""
+        first = " ".join(str(x.get("text") or "").strip() for x in (res.get("segments") or []) if float(x.get("start") or 0) < 6.0).strip()
+        return (first or str(res.get("text") or "").strip())[:220]
+    finally:
+        for x in turn.store.dir.glob(f"hook_{row['id']}*"):
+            x.unlink(missing_ok=True)
+
+def t_find_hooks(turn: Turn, query: str | None = None, count: int = 4, about: str | None = None) -> dict[str, Any]:
+    """How the best-selling videos open: the first words actually spoken in the most viewed Shop videos for a product or category."""
+    count = max(2, min(int(count or 4), 5))
+    if str(query or "").strip():
+        t_shop_search(turn, "top", str(query).strip(), 24)   # the person's Shop grid shows the same videos that were studied
+    p = turn.project()
+    rows = [r for r in ((p.get("shop") or {}).get("videos") or []) if str(r.get("url") or "").startswith("https://www.tiktok.com/")]
+    if not rows:
+        raise ValueError("There are no Shop videos to study yet. Pass query (the product or the category) to search first.")
+    rows = sorted(rows, key=lambda r: -(r.get("views") or 0))
+    about = str(about or query or "").strip()
+    if about:                                                # "vacuum" also finds vacuum flasks and vacuum bags: keep the videos that really sell that kind of product
+        listing = "\n".join(f'{r["id"]} | {r.get("product") or r.get("title")} | {r.get("views") or 0} views' for r in rows[:40])
+        pick = ask_json('You choose which TikTok Shop videos sell a given kind of product. Reply with JSON only: {"ids": [video ids, as strings]}. '
+                        'Keep only the videos whose product really is that kind of product. For example "vacuum" means a vacuum cleaner for floors or cars, '
+                        'not a vacuum flask, a vacuum storage bag or a pore vacuum, unless that is what was asked for. Order by views, highest first. '
+                        'If none fit, reply {"ids": []}.',
+                        f"The person wants: {about}\n\nVideos (id | product | views):\n{listing}")
+        if pick is not None:
+            ids = [str(x) for x in (pick.get("ids") or [])]
+            rows = [r for i in ids for r in rows if str(r["id"]) == i]
+            if not rows:
+                raise ValueError(f'The Shop search found no videos that really sell "{about}". Tell the person, and offer to search with other words.')
+    yt = shutil.which("yt-dlp")
+    if not yt:
+        raise RuntimeError("The videos cannot be fetched right now.")
+    c, known, out, heard = comfy(), dict(p.get("hooks") or {}), [], 0
+    for i, r in enumerate(rows[:count + 3]):                  # a video that opens on music or a visual says nothing: listen to a few more until enough speak
+        if turn.stop.is_set() or heard >= count:
+            break
+        vid = str(r["id"])
+        if vid not in known:
+            turn.emit({"type": "progress", "note": f"Listening to how video {i + 1} opens"})
+            try:
+                known[vid] = hook_of(turn, c, yt, r)
+            except Exception:
+                known[vid] = ""
+        words = known[vid] if len(re.findall(r"[A-Za-z']+", known[vid] or "")) >= 4 else ""
+        heard += 1 if words else 0
+        out.append({"creator": r.get("creator"), "product": r.get("product"), "views": r.get("views"), "units_7d": r.get("units_7d"),
+                    "opening_words": words or None, "caption": r.get("title"),
+                    **({} if words else {"opens_with": "no clear speech in the first seconds: music, or a visual opening"})})
+    with turn.store.lock:
+        p = turn.project()
+        p["hooks"] = {**(p.get("hooks") or {}), **{k: v for k, v in known.items() if v}}
+        turn.commit(p)
+    return {"videos": out, "heard": heard,
+            "note": "opening_words is what each creator really says in the first seconds; caption is the text under the video. Treat them as evidence: "
+                    "name the way each one opens and quote only a few of its words, with the creator and the views. Then write new hooks for the "
+                    "person's own video on those patterns, in new words. Never hand a creator's sentence over as the person's line. "
+                    "If heard is 0, say the openings could not be heard and work from the captions, saying so."}
+
 def fetch_reference(turn: Turn, p: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
     """One selling video into the library as a reference, fetched alone from its TikTok link."""
     for a in p["assets"].values():
@@ -1474,6 +1550,12 @@ TOOLS: list[dict[str, Any]] = [
   "description": "Switch what the right side shows. 'editor' collapses the browse view back into the library rail and brings the monitor and timeline back; "
    "use it when the person asks to go back to the editor or you are about to work on the cut. 'browse' reopens the last view you built with show_canvas.",
   "input_schema": {"type": "object", "properties": {"view": {"type": "string", "enum": ["editor", "browse"]}}, "required": ["view"]}},
+ {"name": "find_hooks", "fn": t_find_hooks, "label": "Studying how the top videos open",
+  "description": "Find out how the best-selling TikTok Shop videos open: the first words actually spoken in the most viewed videos for a product or category, with their views and sales. "
+   "Use it before you suggest any hook, opening line, angle or script idea. query is the product or category (\"cordless vacuum\", \"skincare\"); leave it out to study the videos already in the Shop results. "
+   "about says exactly what is being sold, in a few words (\"a cordless vacuum cleaner for floors\"), so look-alike products are left out. "
+   "count is how many videos to listen to, 2 to 5. It takes about fifteen seconds a video.",
+  "input_schema": {"type": "object", "properties": {"query": {"type": "string"}, "about": {"type": "string"}, "count": {"type": "number"}}}},
  {"name": "plan_video", "fn": t_plan_video, "label": "Laying out the steps",
   "description": "Set a new product video up on the canvas as its steps, filled in with your choices: the subject, who is on camera, the kind of video and its length, "
    "the script, the voice, and Film with its price. Use this whenever the person asks you to make, film, clip or promote a video; do not call generate_clip for that. "
@@ -1559,6 +1641,7 @@ How to work
 - The voice in a filmed clip comes from the video model, matched to the presenter. If they want their real voice instead (a voiceover, narration over product shots), use record_voice: it opens a recorder and their take lands on the audio track. Speaking new lines in a copy of their voice (cloning) is not built yet; say so only if they ask for exactly that.
 - Another creator's footage, face and voice never go into an export. That is why a clip is filmed new. Say this only if they ask for the original file itself, and in one sentence.
 - Analytics you can show today: TikTok Shop market data from shop_search, and facts about this cut. There are no account or sales analytics for the user yet; say so if asked rather than inventing them.
+- Hooks, opening lines, angles and script ideas come from what is selling, never from the product name alone. When they ask for one ("give me a good hook for a vacuum", "how should this open", "ideas for the script"), call find_hooks first: query is the product or category they named; leave it out to study the videos already found. Then answer in this order: the two or three ways the best-selling videos open, each with a few of the creator's actual words in quotes, whose video it was and its views; then two or three new hooks for their video built on those patterns, in new words. If find_hooks fails, say the Shop could not be reached and offer to try again; never present an invented hook as if it came from the data.
 - Keep replies short and plain: what you did, anything they should look at, and at most one suggestion for what next. No headings, no lists unless they asked for options. Times as seconds with one decimal.
 
 Rules that do not bend

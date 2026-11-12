@@ -580,13 +580,20 @@
       if (ev.button || ev.target.closest('.gn-x')) return;
       ev.stopPropagation(); hideMenu();
       var me = node(n.id), x0 = ev.clientX, y0 = ev.clientY, ox = me.x, oy = me.y, port = !!ev.target.closest('.gp.out'), moved = false, tmp = null;
+      if (ev.shiftKey && !port) { if (SEL[me.id]) delete SEL[me.id]; else SEL[me.id] = 1; markSel(); return; }   // shift-click adds to, or takes from, the selection
+      if (!SEL[me.id]) clearSel();
+      var orig = (SEL[me.id] ? G.nodes.filter(function (m) { return SEL[m.id]; }) : [me]).map(function (m) { return { n: m, x: m.x, y: m.y }; });
       if (port) { tmp = sv('path', { 'class': 'gw temp' }); wiresEl.appendChild(tmp); }
       var move = function (mv) {
         if (!moved && Math.abs(mv.clientX - x0) + Math.abs(mv.clientY - y0) < 5) return;
         moved = true;
         if (port) { var w = toWorld(mv.clientX, mv.clientY); tmp.setAttribute('d', curve(me.x + NW, me.y + NH / 2, w.x, w.y)); return; }
-        e.classList.add('drag'); me.x = Math.round(ox + (mv.clientX - x0) / V.k); me.y = Math.round(oy + (mv.clientY - y0) / V.k);
-        e.style.left = me.x + 'px'; e.style.top = me.y + 'px'; drawWires();
+        e.classList.add('drag');
+        orig.forEach(function (o) {                           // everything selected moves together
+          o.n.x = Math.round(o.x + (mv.clientX - x0) / V.k); o.n.y = Math.round(o.y + (mv.clientY - y0) / V.k);
+          var oe = els[o.n.id]; if (oe) { oe.style.left = o.n.x + 'px'; oe.style.top = o.n.y + 'px'; }
+        });
+        drawWires();
       };
       var up = function (u) {
         window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
@@ -645,7 +652,7 @@
     G.nodes.forEach(function (n) {
       have[n.id] = 1; var e = els[n.id];
       if (!e) { e = els[n.id] = build(n); e.classList.add('new'); world.appendChild(e); setTimeout(function () { e.classList.remove('new'); }, 700); }
-      paint(n, e);
+      paint(n, e); e.classList.toggle('sel', !!SEL[n.id]);
     });
     Object.keys(els).forEach(function (id) { if (!have[id]) { els[id].remove(); delete els[id]; } });
     drawWires();
@@ -655,7 +662,7 @@
     if (on) { var nd = needs(on); say(nd.length ? 'This one needs ' + nd.map(function (x) { return T[x.type].title.toLowerCase(); }).join(' and ') + ' first. Add it from here, or drag a wire into this node.' : guideFor(on)); }
     else {
       var cur = current();
-      say(!cur ? 'Drag media in from the left or from your computer, wire nodes together, or tell Ember what to do. Whatever is wired into Final video is your video.'
+      say(!cur ? 'Drag media in, wire nodes together, or tell Ember what to do. Drag on the empty board to select several nodes; hold Space and drag to move the board. Whatever is wired into Final video is your video.'
         : cur.type === 'subject' ? 'Step 1: click "What is the video about?" to pick a product, or drop a product picture on the canvas. Or tell Ember below and it sets the video up.'
         : 'Step ' + (ORDER.indexOf(cur.type) + 1) + ': click "' + T[cur.type].ask + '" to carry on.');
     }
@@ -709,15 +716,79 @@
     menuEl.style.left = clamp(at.x * V.k + V.x, 12, r.width - menuEl.offsetWidth - 12) + 'px';
     menuEl.style.top = clamp(at.y * V.k + V.y - 40, 12, r.height - menuEl.offsetHeight - 12) + 'px';
   }
-  view.addEventListener('pointerdown', function (e) {        // drag the board to move around
-    if (e.button || e.target.closest('.gn, .flow-panel, .flow-menu, .flow-zoom')) return;
+  /* ---------- selecting several nodes, and moving the board ---------- */
+  var SEL = {}, spaceDown = false;
+  function selCount() { return Object.keys(SEL).length; }
+  function markSel() { Object.keys(els).forEach(function (id) { els[id].classList.toggle('sel', !!SEL[id]); }); }
+  function clearSel() { if (selCount()) { SEL = {}; markSel(); } }
+  function idle(t) { var tag = t && t.tagName; return !(tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON' || tag === 'A' || (t && t.isContentEditable)); }
+  document.addEventListener('keydown', function (e) { if (e.code === 'Space' && !root.hidden && idle(e.target)) { spaceDown = true; view.classList.add('grab'); e.preventDefault(); } });
+  document.addEventListener('keyup', function (e) { if (e.code === 'Space') { spaceDown = false; view.classList.remove('grab'); } });
+  view.addEventListener('pointerdown', function (e) {        // drag on the empty board selects; hold Space (or the middle button) and drag to move the board
+    if (e.target.closest('.gn, .flow-panel, .flow-menu, .flow-zoom, .flow-toast')) return;
+    var x0 = e.clientX, y0 = e.clientY;
+    if (e.button === 1 || (e.button === 0 && spaceDown)) {
+      e.preventDefault(); hideMenu();
+      var vx = V.x, vy = V.y;
+      view.classList.add('panning');
+      var pan = function (m) { V.x = vx + m.clientX - x0; V.y = vy + m.clientY - y0; apply(false); };
+      var done = function () { window.removeEventListener('pointermove', pan); window.removeEventListener('pointerup', done); view.classList.remove('panning'); keep(); };
+      window.addEventListener('pointermove', pan); window.addEventListener('pointerup', done);
+      return;
+    }
+    if (e.button) return;
     hideMenu();
-    var x0 = e.clientX, y0 = e.clientY, vx = V.x, vy = V.y;
-    view.classList.add('panning');
-    var move = function (m) { V.x = vx + m.clientX - x0; V.y = vy + m.clientY - y0; apply(false); };
-    var up = function () { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); view.classList.remove('panning'); keep(); };
+    var r = view.getBoundingClientRect(), box = null, base = e.shiftKey ? Object.assign({}, SEL) : {};
+    var move = function (m) {
+      if (!box) { if (Math.abs(m.clientX - x0) + Math.abs(m.clientY - y0) < 5) return; box = el('div', { class: 'flow-marquee' }); view.appendChild(box); }
+      var x = Math.min(x0, m.clientX), y = Math.min(y0, m.clientY), w = Math.abs(m.clientX - x0), h = Math.abs(m.clientY - y0);
+      box.style.left = (x - r.left) + 'px'; box.style.top = (y - r.top) + 'px'; box.style.width = w + 'px'; box.style.height = h + 'px';
+      SEL = Object.assign({}, base);
+      G.nodes.forEach(function (n) { var ne = els[n.id]; if (!ne || ne.hidden) return; var b = ne.getBoundingClientRect(); if (b.left < x + w && b.right > x && b.top < y + h && b.bottom > y) SEL[n.id] = 1; });
+      markSel();
+    };
+    var up = function () {
+      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
+      if (!box) return void (e.shiftKey ? 0 : clearSel());       // a plain click on the empty board lets go of the selection
+      box.remove();
+      var k = selCount(); if (k) say(k + ' selected. Drag one to move them together, press Backspace to take them off the board, Escape to let go.');
+    };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
   });
+  function tidy() {                                           // a clean left-to-right layout: each step one column on from what feeds it, each separate chain on its own rows
+    var fin = finalNode(), depth = {}, STEP = NH + 46, COL = NW + GAP;
+    var deep = function (n, seen) {
+      if (depth[n.id] !== undefined) return depth[n.id];
+      if (seen[n.id]) return 0; seen[n.id] = 1;
+      var ps = ins(n.id), v = ps.length ? Math.max.apply(null, ps.map(function (p) { return deep(p, seen) + 1; })) : 0;
+      depth[n.id] = v; return v;
+    };
+    G.nodes.forEach(function (n) { deep(n, {}); });
+    var top = {}, find = function (id) { while (top[id] !== id) id = top[id]; return id; };
+    G.nodes.forEach(function (n) { top[n.id] = n.id; });
+    G.wires.forEach(function (w) { if (top[w.from] === undefined || top[w.to] === undefined) return; var a = find(w.from), b = find(w.to); if (a !== b) top[a] = b; });
+    var groups = {}; G.nodes.forEach(function (n) { var k = find(n.id); (groups[k] = groups[k] || []).push(n); });
+    var list = Object.keys(groups).map(function (k) { return groups[k]; }), minY = function (g) { return Math.min.apply(null, g.map(function (n) { return n.y; })); };
+    if (fin && !ins(fin.id).length && list.length > 1) {      // a final video with nothing wired in closes the first chain
+      list = list.filter(function (g) { return g.indexOf(fin) < 0; });
+      list.sort(function (A, B) { return minY(A) - minY(B); });
+      depth[fin.id] = Math.max.apply(null, list[0].map(function (n) { return depth[n.id]; })) + 1; list[0].push(fin);
+    } else list.sort(function (A, B) { return minY(A) - minY(B); });
+    var y0 = 0;
+    list.forEach(function (g) {
+      var layers = {}, row = {};
+      g.forEach(function (n) { (layers[depth[n.id]] = layers[depth[n.id]] || []).push(n); });
+      var keys = Object.keys(layers).map(Number).sort(function (a, b) { return a - b; }), tall = Math.max.apply(null, keys.map(function (k) { return layers[k].length; }));
+      keys.forEach(function (k) {
+        var L = layers[k], lean = function (n) { var ps = ins(n.id).filter(function (p) { return row[p.id] !== undefined; }); return ps.length ? ps.reduce(function (s, p) { return s + row[p.id]; }, 0) / ps.length : -1; };
+        L.sort(function (a, b) { return lean(a) - lean(b) || a.y - b.y; });
+        var off = (tall - L.length) / 2;
+        L.forEach(function (n, i) { row[n.id] = off + i; n.x = k * COL; n.y = Math.round(y0 + (off + i) * STEP); });
+      });
+      y0 += tall * STEP + 36;
+    });
+    keep(); draw(); fit();
+  }
   view.addEventListener('dragover', function (e) {            // media dragged from the rail
     var t = e.dataTransfer && Array.prototype.slice.call(e.dataTransfer.types || []);
     if (t && (t.indexOf('text/ember-asset') >= 0 || t.indexOf('text/ember-shop') >= 0)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }
@@ -746,12 +817,18 @@
   }, { passive: false });
   $('#flow-in').addEventListener('click', function () { var r = view.getBoundingClientRect(); zoomAt(r.left + room().w / 2, r.top + r.height / 2, V.k * 1.2); });
   $('#flow-out').addEventListener('click', function () { var r = view.getBoundingClientRect(); zoomAt(r.left + room().w / 2, r.top + r.height / 2, V.k / 1.2); });
-  $('#flow-fit').addEventListener('click', fit);
+  $('#flow-fit').addEventListener('click', tidy);            // Fit tidies the board first, then fits it in view
   $('#flow-guided').addEventListener('click', function () { G.guided = !G.guided; keep(); draw(); renderPanel(); });
   document.addEventListener('keydown', function (e) {        // Backspace or Delete takes the selected node off the board
-    if ((e.key !== 'Backspace' && e.key !== 'Delete') || root.hidden || !G.open || e.metaKey || e.ctrlKey || e.altKey) return;
+    if ((e.key !== 'Backspace' && e.key !== 'Delete') || root.hidden || (!G.open && !selCount()) || e.metaKey || e.ctrlKey || e.altKey) return;
     var t = e.target, tag = t && t.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable) || (t && t.closest && t.closest('.flow-panel, .chat-head, .chat-log, .chat-foot, #lib, .dlg, .menu-pop'))) return;
+    if (selCount()) {                                         // several selected: they all go
+      e.preventDefault();
+      var ids = Object.keys(SEL), gone = 0; SEL = {};
+      ids.forEach(function (id) { var m = node(id); if (!m || m.type === 'final' || G.nodes.filter(function (x) { return x.type !== 'final'; }).length < 2) return; removeNode(m); gone++; });
+      return void say(gone + (gone === 1 ? ' node' : ' nodes') + ' taken off the board. Files stay in your media.');
+    }
     var n = node(G.open); if (!n) return;
     e.preventDefault();
     if (n.type === 'final') return void say('The final video stays. Unwire a clip from it to take that clip out.');
@@ -759,7 +836,7 @@
     var file = n.type === 'media'; removeNode(n);
     say(file ? 'Taken off the board. The file is still in your media.' : 'Step removed.');
   });
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !root.hidden) { if (!menuEl.hidden) hideMenu(); else if (G.open) { G.open = null; keep(); draw(); renderPanel(); } } });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !root.hidden) { clearSel(); if (!menuEl.hidden) hideMenu(); else if (G.open) { G.open = null; keep(); draw(); renderPanel(); } } });
 
   /* ---------- the panel: the open node says what it wants ---------- */
   function renderPanel() {
@@ -1248,7 +1325,23 @@
     root.classList.add('leaving');
     closing = setTimeout(function () { root.hidden = true; root.classList.remove('leaving'); }, 430);
   }
-  $('#flow-reset').addEventListener('click', function () { G = fresh(); delete G.pristine; V = { x: 0, y: 0, k: 1 }; shopTried = false; Object.keys(els).forEach(function (id) { els[id].remove(); delete els[id]; }); sync(); draw(); renderPanel(); focusOn(G.nodes[0]); keep(); });
+  var resetBtn = $('#flow-reset'), resetT = 0;
+  function unsure() { clearTimeout(resetT); resetBtn.classList.remove('sure'); resetBtn.textContent = 'Start over'; }
+  resetBtn.addEventListener('click', function () {            // Start over wipes the board: every step, every node, and the clips in the video. Files stay in Media.
+    var p = P(), used = {}; p.tracks.video.concat(p.tracks.audio).forEach(function (c) { used[c.asset] = 1; });
+    var clips = Object.keys(used);
+    if (clips.length && !resetBtn.classList.contains('sure')) {
+      resetBtn.classList.add('sure'); resetBtn.textContent = 'Clear everything?';
+      say('Start over clears the board and takes ' + clips.length + (clips.length === 1 ? ' clip' : ' clips') + ' out of your video. Your files stay in Media. Press again to confirm.');
+      clearTimeout(resetT); resetT = setTimeout(unsure, 6000); return;
+    }
+    unsure();
+    clips.forEach(function (id) { S.cut.remove(id); });
+    if (P().tracks.captions.length) S.cut.clearCaptions();
+    G = fresh(); delete G.pristine; G.open = null; SEL = {}; claimed = null; peek = null; V = { x: 0, y: 0, k: 1 }; shopTried = false;
+    Object.keys(els).forEach(function (id) { els[id].remove(); delete els[id]; });
+    sync(); draw(); renderPanel(); focusOn(G.nodes[0]); keep();
+  });
   window.addEventListener('resize', function () { if (!root.hidden) apply(false); });
   $('#flow .flow-top .orb').innerHTML = S.mascot();
   S.onChange(function () {                                    // the project changed (you, or Ember): the canvas follows

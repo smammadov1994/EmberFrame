@@ -770,6 +770,18 @@
     window.dispatchEvent(new Event('resize'));               // the board has more, or less, room now
   }
   document.body.classList.add('chat-off');                   // the page opens with just the field
+  function placeDock() {                                      // the field sits at the bottom centre of the board itself, never over the media rail, the chat or the step panel
+    var d = $('#dock'), v = $('#flow-view'), r = v ? v.getBoundingClientRect() : null;
+    if (!r || !r.width || innerWidth <= 760) { d.style.left = ''; d.style.width = ''; return; }
+    var pan = $('#flow-panel'), pw = pan && !pan.hidden ? pan.offsetWidth + 16 : 0, free = Math.max(280, r.width - pw - 24), w = Math.min(600, free);
+    d.style.width = w + 'px'; d.style.left = Math.round(r.left + (r.width - pw) / 2) + 'px';
+    var z = $('.flow-zoom'), zw = z ? z.offsetWidth + 32 : 0;
+    $('#flow').classList.toggle('zoom-up', (r.width - pw - w) / 2 < zw);
+  }
+  window.addEventListener('resize', placeDock);
+  if (window.ResizeObserver && $('#flow-view')) new ResizeObserver(placeDock).observe($('#flow-view'));
+  if ($('#flow-panel')) new MutationObserver(placeDock).observe($('#flow-panel'), { attributes: true, attributeFilter: ['hidden'] });
+  setTimeout(placeDock, 0);
   dockOrb.addEventListener('click', function () { chatOpen(!chatIsOpen()); });
   $('#chat-hide').addEventListener('click', function () { chatOpen(false); });
   function waiting(on) {                                      // three embers while Ember has not answered yet

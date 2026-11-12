@@ -746,10 +746,9 @@ body.chat-off .s-body, body.chat-off.canvas .s-body { grid-template-columns: min
 body.chat-off .chat, body.chat-off .rz-chat { display: none; }
 .chat { animation: chat-in 0.42s var(--ease) both; }
 @keyframes chat-in { from { opacity: 0; transform: translateX(-26px); } }
-.chat-foot { padding-bottom: 86px; }                         /* the dock sits over the bottom of the page: the log ends above it */
-@media (max-width: 1700px) { .flow .flow-zoom { bottom: 86px; } }   /* on a narrower page the zoom buttons move up, clear of the dock */
+.flow.zoom-up .flow-zoom { bottom: 86px; }                    /* the board is too narrow for both: the zoom buttons move up, clear of the field */
+.cv-body { padding-bottom: 96px; }                           /* the browse view ends above the field */
 .chat-hide { margin-left: 2px; }
-.flow-panel .fp-body { padding-bottom: 92px; }                /* same for the step panel */
 
 /* the session: black, etched */
 .panel.chat { background: #050505; border-color: rgba(255, 255, 255, 0.08); }
