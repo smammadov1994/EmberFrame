@@ -53,6 +53,9 @@ either order; both come before "What to make".
 - **While a clip is filming.** The steps that feed it are read-only, they cannot be deleted or
   rewired, Start over is refused, and a new Shop pick is refused. Stop is in Film it.
 - **While Ember is working.** Board steps that call the server wait and say so.
+- **Reloading mid-render is safe.** The render keeps running on the server. The Film it step keeps
+  waiting, the page looks for the clip every few seconds, and wires it in when it arrives. After
+  forty minutes with no clip it says the render did not report back.
 - **Start over** wipes the board and takes the clips out of the video. Files stay in Media. It asks
   once when the video has clips.
 - **Deleting a file** from Media asks once. A step that used a deleted file opens again.
@@ -118,5 +121,3 @@ project (files, the cut, captions) is saved on the server.
 - Lip-synced voices other than the video model's own; library and own voices are voiceovers.
 - Supabase accounts and storage (`supabase/` holds the data model only).
 - The phone layout of the board works but is not tuned.
-- A render that is running when the page is reloaded is not picked up again by its Film it node;
-  the clip still arrives in Media and on the board when it finishes.

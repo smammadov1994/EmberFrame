@@ -56,7 +56,12 @@
   var G = null;
   try { G = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
   if (!G || !G.nodes || !G.nodes.length || !G.wires) G = fresh();
-  G.nodes.forEach(function (n) { if (n.type === 'film' && n.d.film && n.d.film.state === 'run') n.d.film = null; });   // a render cannot be picked up after a reload
+  G.nodes.forEach(function (n) {                              // a render that was running when the page was left keeps running on the server: wait for its clip
+    var fl = n.type === 'film' && n.d.film;
+    if (!fl || fl.state !== 'run') return;
+    if (Date.now() - (fl.t0 || 0) < 40 * 60000) { fl.resumed = true; fl.note = 'Still filming. The clip appears here when it is done.'; }
+    else n.d.film = { state: 'fail', reason: 'The render did not report back. If it finished, the clip is in Media.' };
+  });
   var V = G.view || { x: 0, y: 0, k: 1 };
   function keep() { G.view = V; delete G.pristine; try { localStorage.setItem(KEY, JSON.stringify(G)); } catch (e) {} }
   function P() { return S.project(); }
@@ -202,6 +207,13 @@
     Object.keys(p.assets).forEach(function (id) {             // anything new (Ember made it, you uploaded it) appears as a node
       if (G.known[id]) return; G.known[id] = 1;
       var a = p.assets[id];
+      var rf = a.source === 'generated' && !mediaNode(id) && G.nodes.filter(function (m) { return m.type === 'film' && m.d.film && m.d.film.state === 'run' && m.d.film.resumed; })[0];
+      if (rf) {                                              // the clip a reloaded page was waiting for
+        rf.d.film = { state: 'done', asset: id };
+        var got = addMedia(id, rf.x + NW + GAP, rf.y); G.wires.push({ from: rf.id, to: got.id });
+        if (fin.x < got.x + NW + GAP) fin.x = got.x + NW + GAP;
+        return;
+      }
       if (a.source === 'product' || mediaNode(id) || adopt(a)) return;
       var lead = a.source === 'generated' && G.lead && node(G.lead);   // a clip Ember filmed from the steps it filled in: it comes out of the last of them
       if (lead && !outs(lead.id).length && !G.nodes.some(function (m) { return m.type === 'film' && m.d.film && m.d.film.state === 'run'; })) {
@@ -319,7 +331,7 @@
   view.appendChild(toast);
   function current() {                                        // guided: the step being worked on (open and unfinished, else the first unfinished)
     if (!G.guided) return null;
-    var waiting = function (n) { return n && n.type !== 'media' && n.type !== 'final' && !isDone(n); }, on = G.open && node(G.open);
+    var waiting = function (n) { return n && n.type !== 'media' && n.type !== 'final' && !isDone(n) && !(n.type === 'film' && n.d.film && n.d.film.state === 'run'); }, on = G.open && node(G.open);   // a step that is filming is not waiting for the person
     if (waiting(on)) return on;
     return G.nodes.filter(waiting).sort(function (x, y) { return ORDER.indexOf(x.type) - ORDER.indexOf(y.type); })[0] || null;
   }
@@ -1301,7 +1313,10 @@
       bill.appendChild(el('div', { class: 'f-prog' }, [el('b', { id: 'f-film-note', text: d.film.note }), el('span', { id: 'f-film-time', text: Math.round((Date.now() - d.film.t0) / 1000) + 's' })]));
       bill.appendChild(el('div', { class: 'f-bar' }, [el('i')]));
       bill.appendChild(el('div', { class: 'f-foot' }, [el('p', { class: 'f-note', text: 'A render takes a few minutes. Stopping cancels it.' }), el('span', { class: 'grow' }),
-        el('button', { type: 'button', class: 'btn', text: 'Stop', onclick: function () { api('/api/stop', { method: 'POST', body: { what: 'board' } }).catch(function () {}); } })]));
+        el('button', { type: 'button', class: 'btn', text: 'Stop', onclick: function () {
+          api('/api/stop', { method: 'POST', body: { what: 'board' } }).catch(function () {});
+          if (d.film && d.film.resumed) { d.film = null; keep(); refresh(n); }   // a reloaded page has no stream to hear the answer on
+        } })]));
     } else if (st === 'done') {
       var fm = d.film, bad = fm.said && fm.said.match < 0.8 && !fm.voiced;
       if (fm.voiced) bill.appendChild(el('p', { class: 'f-note ok', text: 'The line is spoken word for word by ' + (fm.voiced.kind === 'fish' ? fm.voiced.title : 'your own voice') + ', laid over the clip.' }));
@@ -1381,6 +1396,14 @@
     sync(); draw(); renderPanel(); focusOn(G.nodes[0]); keep();
   });
   window.addEventListener('resize', function () { if (!root.hidden) apply(false); });
+  setInterval(function () {                                   // a render this page did not start itself (it was reloaded mid-render): look for its clip
+    var waiting = G.nodes.filter(function (m) { return m.type === 'film' && m.d.film && m.d.film.state === 'run' && m.d.film.resumed; });
+    if (!waiting.length || root.hidden || !P() || (S.acting && S.acting())) return;
+    waiting.forEach(function (m) {
+      if (Date.now() - (m.d.film.t0 || 0) > 40 * 60000) { m.d.film = { state: 'fail', reason: 'The render did not report back. If it finished, the clip is in Media.' }; keep(); draw(); if (G.open === m.id) renderPanel(); }
+    });
+    S.api('/api/project').then(function (p) { if (p && P() && p.version !== P().version) S.setProject(p); }).catch(function () {});
+  }, 8000);
   $('#flow .flow-top .orb').innerHTML = S.mascot();
   S.onChange(function () {                                    // the project changed (you, or Ember): the canvas follows
     if (root.hidden || !P()) return;
