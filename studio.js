@@ -802,8 +802,19 @@
     card._row = row; card.appendChild(row);
   }
   var pendingPlan = null;
+  var SUGGEST_LINE = /\n+\s*\**\s*(?:Suggest(?:ions)?|Next steps?)\s*:?\s*\**\s*:?\s*([^\n]+)\s*$/i;
+  function liftSuggestions() {                                // the model sometimes writes its next steps as a "Suggest:" line instead of sending buttons: make them buttons
+    if (!msgEl || nextEl || !msgEl._raw) return;
+    var m = msgEl._raw.match(SUGGEST_LINE);
+    if (!m) return;
+    var opts = m[1].split(/\s*[·|•]\s*/).map(function (x) { return x.replace(/^[\s"'“”*_`]+|[\s"'“”*_`.]+$/g, ''); }).filter(function (x) { return x.length > 2 && x.length < 90; });
+    if (opts.length < 2) return;
+    msgEl._raw = msgEl._raw.slice(0, m.index).replace(/\s+$/, ''); msgEl.innerHTML = md(msgEl._raw);
+    showNext(opts.slice(0, 3).map(function (x) { return { label: x.length > 34 ? x.slice(0, 33) + '…' : x, say: x }; }));
+  }
   function endTurn() {
     waiting(false);
+    liftSuggestions();
     if (msgEl) msgEl.classList.remove('live');
     $$('.act', log).forEach(function (a) {                    // long runs fold into one line
       if (a._done) return; a._done = true;
