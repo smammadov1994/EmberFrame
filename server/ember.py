@@ -2214,8 +2214,24 @@ def flow_script(turn: Turn, args: dict[str, Any]) -> None:
         done(True, "Model not connected: a plain draft you can rewrite." if brain() == "offline" else "A plain draft you can rewrite.")
     else:
         done()
-    turn.emit({**out, "line": line, "shot": shot, "name": str(js.get("name") or product or "New clip")[:50], "seconds": seconds,
-               "words": int(seconds * 2.4)})
+    turn.emit({**out, "look": look_of(args, cre.get("kind") == "none"),
+               "line": line, "shot": shot, "name": str(js.get("name") or product or "New clip")[:50], "seconds": seconds,
+               "words": int(seconds * 2.4), "facts": [str(x)[:140] for x in facts][:10]})   # the facts the writer was given, shown beside the script
+
+FLOW_LOOKS = {
+    "phone": "Look: handheld phone footage in natural light, the way a creator films it. Plain and believable.",
+    "cinematic": "Look: a cinematic commercial, not phone footage. Brief it the way a commercials director briefs a cinematographer, in three or four sentences. "
+                 "Give the shot an arc: a beat of anticipation, the action, a payoff on the product. Name the lens (macro, 35mm, 85mm) and one deliberate camera move "
+                 "(a slow push in, a low tracking move, an orbit, a rise). Shape the light: a backlight or rim light, a practical lamp, haze or reflections, deep shadows. "
+                 "Shallow depth of field, real texture and material detail, slow motion where it earns its place. Design the sound: the product's own sounds close up, "
+                 "one clean accent, room tone underneath. Still one continuous shot, still only what the facts support.",
+}
+CINEMATIC_BRIEF = ("Cinematic commercial: shot on a cinema camera, shallow depth of field, controlled dramatic lighting, smooth deliberate camera movement, "
+                   "rich colour and fine material detail. Not handheld phone footage.")
+
+def look_of(args: dict[str, Any], nobody: bool) -> str:
+    """The look asked for, or the natural one: a product on its own is filmed like a commercial, a presenter like phone footage."""
+    return args["look"] if args.get("look") in FLOW_LOOKS else ("cinematic" if nobody else "phone")
 
 def flow_cast(p: dict[str, Any], args: dict[str, Any], shot: str, line: str) -> tuple[str, list[str]]:
     """The final brief for the video model: the shot, who and what the pictures are, and the line."""
@@ -2234,6 +2250,8 @@ def flow_cast(p: dict[str, Any], args: dict[str, Any], shot: str, line: str) -> 
         parts.append("Nobody speaks on camera in this shot: no dialogue, lips closed. The words are a voiceover added afterwards. Keep natural room sound.")
     elif line:
         parts.append(f'The presenter says, clearly and naturally: "{line}"')
+    if args.get("look") == "cinematic":
+        parts.append(CINEMATIC_BRIEF)
     return " ".join(parts), refs
 
 def flow_film(turn: Turn, args: dict[str, Any]) -> None:
