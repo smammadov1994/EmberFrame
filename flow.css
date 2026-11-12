@@ -104,6 +104,8 @@
 .ed.browse .flow-panel.in-rail { display: none; }             /* the browse view owns the rail while it is open */
 .flow-panel.in-rail .f-opts { grid-template-columns: 1fr 1fr; }   /* two choices a row fit the rail */
 .flow-panel.in-rail .f-opt { min-height: 112px; padding: 14px; }
+.fp-body .btn { white-space: nowrap; } .fp-body .btn svg { width: 16px; height: 16px; flex: none; }   /* buttons keep one line and a small icon in the narrow rail */
+.fp-body .f-foot { row-gap: 8px; }
 .flow-toast { position: absolute; left: 50%; top: 18px; transform: translateX(-50%); z-index: 6; max-width: min(560px, calc(100% - 48px)); padding: 12px 16px; border-radius: 14px;
   border: 1px solid var(--accent); background: #1C1512; font-size: 14.5px; line-height: 1.4; box-shadow: 0 18px 50px -20px rgba(242, 90, 43, 0.7); animation: toast-in 0.25s ease-out; }
 .flow-toast[hidden] { display: none; }
