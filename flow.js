@@ -262,6 +262,30 @@
     n = place(asset, cx, cy); begin(n); return n;
   }
 
+  function lay(plan) {                                        // Ember chose every step: they go on the board filled in, and it stops before filming
+    if (!plan || !plan.subject || root.hidden) return;
+    sync();
+    var p = P(), s = plan.subject, subj, a = s.asset && p.assets[s.asset];
+    if (s.kind === 'idea') subj = { kind: 'idea', text: s.text, title: s.text };
+    else if (a) subj = { kind: a.reference ? 'reference' : 'asset', asset: a.id, title: (a.meta && a.meta.product) || a.name, poster: thumb(a), price: a.meta && a.meta.price };
+    else return;
+    var n = (a && holder(a)) || G.nodes.filter(function (m) { return m.type === 'subject' && !m.d.subject; })[0];
+    if (!n) n = addNode('subject', 0, Math.max.apply(null, G.nodes.map(function (m) { return m.y; })) + NH + 90);
+    n.d.subject = subj;
+    var step = function (type, fillIn) {                      // the next step along this chain: the one already there, or a new one
+      var m = outs(n.id).filter(function (x) { return x.type === type; })[0] || addNode(type, n.x + NW + GAP, n.y, n.id);
+      fillIn(m.d); n = m; return m;
+    };
+    var c = plan.creator || { kind: 'none' }, av = c.kind === 'avatar' && p.assets[c.asset];
+    step('creator', function (d) { d.creator = av ? { kind: 'avatar', asset: av.id, title: av.name, poster: av.url } : c.kind === 'describe' ? { kind: 'describe', text: c.text } : { kind: 'none' }; });
+    step('format', function (d) { d.make = plan.make || 'clip'; d.seconds = plan.seconds || 8; d.ok = true; if (d.make === 'free') d.idea = s.text || subj.title; });
+    var words = step('script', function (d) { d.script = null; d.ok = false; });
+    delete scriptErr[words.id];
+    if (plan.voice) step('voice', function (d) { d.voice = plan.voice; d.mode = plan.voice.kind; });
+    step('film', function (d) { d.film = null; });
+    G.lead = null; keep(); draw(); open(words.id); fit();     // the script is written here now; they read it, then Film shows the price
+  }
+
   function freeSpot(x, y) {
     var hit = function () { return G.nodes.some(function (n) { return Math.abs(n.x - x) < NW + 30 && Math.abs(n.y - y) < NH + 24; }); };
     while (hit()) y += NH + 44;
@@ -451,9 +475,11 @@
     e.className = 'gn ' + n.type + (done ? ' done' : '') + (n.id === G.open ? ' open' : '') + (need.length ? ' need' : '') + (e.classList.contains('new') ? ' new' : '') +
       (n.type === 'film' && n.d.film && n.d.film.state === 'run' ? ' busy' : '');
     e.style.left = n.x + 'px'; e.style.top = n.y + 'px';
-    e.querySelector('.fn-ic').innerHTML = svg(m.icon);
-    e.querySelector('small').textContent = m.title; e.querySelector('b').textContent = done || sum ? m.title : m.ask;
-    e.querySelector('.fn-t small').textContent = done ? '' : need.length ? 'Waiting' : n.id === G.open ? 'Now' : 'To do';
+    var ic = e.querySelector('.fn-ic'), pic = done && sum && sum.img;   // a finished step shows what was chosen: its picture and its name
+    ic.classList.toggle('pic', !!pic); ic.style.backgroundImage = pic ? 'url("' + sum.img + '")' : ''; ic.innerHTML = pic ? '' : svg(m.icon);
+    e.querySelector('b').textContent = done && sum ? sum.t : done || sum ? m.title : m.ask;
+    e.querySelector('.fn-t small').textContent = done ? m.title : need.length ? 'Waiting' : n.id === G.open ? 'Now' : 'To do';
+    e.title = done && sum ? m.title + ': ' + sum.t : '';
     box.textContent = '';
     if (done) return;                                        // a finished node says so with its green border, nothing more
     if (sum) { var th = el('span', { class: 'th', html: sum.img ? '' : svg(m.icon) }); if (sum.img) th.style.backgroundImage = 'url("' + sum.img + '")'; box.appendChild(th); box.appendChild(el('div', {}, [el('b', { text: sum.t }), el('span', { text: sum.s })])); }
@@ -506,7 +532,11 @@
     keep(); draw();
     if (!G.guided) return void renderPanel();
     var o = outs(n.id);
-    if (o.length) return void open(o[0].id);
+    if (o.length) {                                          // on to the next step that still needs something
+      var nx = o[0], hop = 0;
+      while (nx.type !== 'media' && nx.type !== 'final' && nx.type !== 'film' && isDone(nx) && outs(nx.id).length && hop++ < 12) nx = outs(nx.id)[0];
+      return void open(nx.id);
+    }
     var c = ctx(n.id), next = ORDER.filter(function (t) { return !c[t]; })[0];
     if (!next || n.type === 'film' || n.type === 'media' || n.type === 'final') return void renderPanel();
     open(addNode(next, n.x + NW + GAP, n.y, n.id).id);
@@ -1064,7 +1094,7 @@
     var on = G.open && node(G.open);
     if (!on || on.type === 'media' || on.type === 'final') renderPanel();
   });
-  window.EmberFlow = { open: open0, close: close, place: place, dropped: dropped, fit: fit, showFinal: function () { var fn = finalNode(); if (fn) open(fn.id); },
+  window.EmberFlow = { open: open0, close: close, place: place, dropped: dropped, lay: lay, fit: fit, showFinal: function () { var fn = finalNode(); if (fn) open(fn.id); },
     working: function () { var on = !root.hidden && G.open && node(G.open); return !!on && on.type !== 'media' && on.type !== 'final' && !isDone(on); },   // a step is open and not finished
     refresh: function () { if (!root.hidden) { sync(); draw(); renderPanel(); } }, seen: function () { try { return !!localStorage.getItem(SEEN); } catch (e) { return true; } } };
 })();

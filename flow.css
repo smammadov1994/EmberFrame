@@ -214,6 +214,8 @@
 .gn.done .fn-t small, .gn.done .gn-s { display: none; }
 .gn.done .fn-ic { background: var(--accent-tint); color: var(--accent-text); box-shadow: inset 0 0 0 1px rgba(242, 90, 43, 0.35); }
 .gn.done .fn-t b { font-size: 15.5px; }
+.gn.done .fn-t small { display: block; color: var(--txt-3); }   /* the step's name stays; the bold line is what was chosen */
+.gn.done .fn-ic.pic { background: #1F1E1C center / cover; box-shadow: 0 0 0 1px rgba(53, 199, 150, 0.55); }
 
 .f-note.ok { padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(53, 199, 150, 0.35); background: rgba(53, 199, 150, 0.08); color: #9BE5C8; }
 

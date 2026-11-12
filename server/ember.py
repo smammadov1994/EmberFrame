@@ -1326,8 +1326,57 @@ def t_suggest(turn: Turn, options: list[dict[str, Any]]) -> dict[str, Any]:
         if isinstance(o, dict) and str(o.get("label", "")).strip():
             clean.append({"label": str(o["label"]).strip()[:36], "say": str(o.get("say") or o["label"]).strip()[:400]})
     if clean:
+        turn.suggested = True
         turn.emit({"type": "suggest", "options": clean})
     return {"shown": len(clean)}
+
+def t_plan_video(turn: Turn, subject_asset: str | None = None, idea: str | None = None, creator: str = "avatar",
+                 creator_text: str | None = None, make: str = "clip", seconds: float = 8, voice: str = "presenter",
+                 voice_id: str | None = None, voice_name: str | None = None, voice_asset: str | None = None) -> dict[str, Any]:
+    """Lay a video out as steps on the canvas, filled in. Nothing is filmed: the person reads it and presses Film."""
+    p = turn.project()
+    plan: dict[str, Any] = {}
+    if subject_asset:
+        a = p["assets"].get(str(subject_asset))
+        if not a:
+            raise ValueError("subject_asset is not in the library. Import the selling video first (shop_import), or pass idea instead.")
+        plan["subject"] = {"kind": "reference" if a.get("reference") else "asset", "asset": a["id"]}
+        chosen = a["name"]
+    elif str(idea or "").strip():
+        plan["subject"] = {"kind": "idea", "text": str(idea).strip()[:400]}
+        chosen = plan["subject"]["text"][:60]
+    else:
+        raise ValueError("Say what the video is about: subject_asset (a file in the library) or idea (words).")
+    if creator == "avatar":
+        av = p["assets"].get(p.get("avatar") or "")
+        if not av:
+            raise ValueError("No avatar is saved. Ask for a photo of their creator (the paperclip), or pass creator 'describe' or 'none'.")
+        plan["creator"] = {"kind": "avatar", "asset": av["id"]}
+        who = av["name"]
+    elif creator == "describe" and str(creator_text or "").strip():
+        plan["creator"] = {"kind": "describe", "text": str(creator_text).strip()[:300]}
+        who = "a presenter we make"
+    else:
+        plan["creator"] = {"kind": "none"}
+        who = "no one"
+    make = make if make in FLOW_MAKES else "clip"
+    if plan["creator"]["kind"] == "none" and make in ("clip", "pitch"):
+        make = "showcase"                                    # nobody on camera: a product shot
+    plan["make"] = make
+    plan["seconds"] = min((6, 8, 10, 12, 15), key=lambda s: abs(s - float(seconds or 8)))
+    if plan["creator"]["kind"] != "none":
+        va = p["assets"].get(str(voice_asset or ""))
+        if voice == "own" and va and va["kind"] == "audio":
+            plan["voice"] = {"kind": "own", "asset": va["id"], "title": "My own voice"}
+        elif voice == "library" and voice_id:
+            plan["voice"] = {"kind": "fish", "voice_id": str(voice_id), "title": str(voice_name or "Library voice")[:60]}
+        else:
+            plan["voice"] = {"kind": "model"}
+    turn.emit({"type": "workflow", "plan": plan})
+    return {"laid_out": True, "subject": chosen, "on_camera": who, "kind": make, "seconds": plan["seconds"],
+            "price_to_film": round(plan["seconds"] * RATE, 2),
+            "note": "The steps are on the canvas, filled in. The script is being written there from the product facts. Nothing is filmed "
+                    "or charged until the person presses Film on the canvas. Do not call generate_clip for this video."}
 
 def t_remember(turn: Turn, note: str) -> dict[str, Any]:
     f = turn.store.dir.parent / "memory.md"
@@ -1425,6 +1474,19 @@ TOOLS: list[dict[str, Any]] = [
   "description": "Switch what the right side shows. 'editor' collapses the browse view back into the library rail and brings the monitor and timeline back; "
    "use it when the person asks to go back to the editor or you are about to work on the cut. 'browse' reopens the last view you built with show_canvas.",
   "input_schema": {"type": "object", "properties": {"view": {"type": "string", "enum": ["editor", "browse"]}}, "required": ["view"]}},
+ {"name": "plan_video", "fn": t_plan_video, "label": "Laying out the steps",
+  "description": "Set a new product video up on the canvas as its steps, filled in with your choices: the subject, who is on camera, the kind of video and its length, "
+   "the script, the voice, and Film with its price. Use this whenever the person asks you to make, film, clip or promote a video; do not call generate_clip for that. "
+   "Nothing is filmed: the script is written on the canvas from the product facts, the person can click any step to change it, and they press Film themselves. "
+   "subject_asset is a library file (the selling video you imported, or their own picture or clip); use idea instead when the video is only described in words. "
+   "creator: 'avatar' (their saved avatar), 'describe' (with creator_text) or 'none'. make: 'clip' (the presenter points up at the product callout), 'pitch' (holds it up to the lens), "
+   "'showcase' (product only, nobody speaks) or 'free'. seconds: 6, 8, 10, 12 or 15. voice: 'presenter' (the video model speaks, lips match), 'library' (voice_id and voice_name from list_voices) "
+   "or 'own' (voice_asset, a recording of theirs).",
+  "input_schema": {"type": "object", "properties": {"subject_asset": {"type": "string"}, "idea": {"type": "string"},
+    "creator": {"type": "string", "enum": ["avatar", "describe", "none"]}, "creator_text": {"type": "string"},
+    "make": {"type": "string", "enum": ["clip", "pitch", "showcase", "free"]}, "seconds": {"type": "number"},
+    "voice": {"type": "string", "enum": ["presenter", "library", "own"]}, "voice_id": {"type": "string"}, "voice_name": {"type": "string"},
+    "voice_asset": {"type": "string"}}}},
  {"name": "suggest", "fn": t_suggest, "label": "Offering next steps",
   "description": "Offer two or three next steps as buttons under your reply. Call it at the end of every turn, after you have written the reply, in the same response. "
    "label is the button text, at most four words. say is the full instruction that tapping the button sends to you, written as the person would say it.",
@@ -1474,7 +1536,7 @@ What you can do
 
 How to work
 - Act, then say what changed. Do the work rather than describing what you could do.
-- Guess, do not ask. Every edit you make can be undone with one click and earlier versions are kept, so a wrong guess costs the person nothing, while a question costs them a whole turn. When a request leaves a detail open (which clip, how long, which half, what speed), choose the most sensible reading, do it, and say in a few words what you assumed. If two clips have different lengths, use the shorter length. If "the first video" is a tiny sliver, use the file it came from. Ask a question only when a render would cost money on a guess, or when you truly cannot tell what the person wants at all.
+- Guess, do not ask (one exception: which product a new video is about; see clipping below). Every edit you make can be undone with one click and earlier versions are kept, so a wrong guess costs the person nothing, while a question costs them a whole turn. When a request leaves a detail open (which clip, how long, which half, what speed), choose the most sensible reading, do it, and say in a few words what you assumed. If two clips have different lengths, use the shorter length. If "the first video" is a tiny sliver, use the file it came from. Ask a question only when a render would cost money on a guess, or when you truly cannot tell what the person wants at all.
 - The studio state at the end of each user message is the truth about the editor right now, including edits the person made by hand. Use its ids. After your own edits, trust the timeline the tool returns.
 - Make the reads you need together, then the edits. Check the result against what was asked before you say it is done.
 - When you film something new, write the brief like a director: subject, action, setting, light, lens, camera move, sound. One shot per clip.
@@ -1487,9 +1549,10 @@ How to work
 - Every turn ends with a suggest call. After you have written your reply, call suggest in the same response with two or three next steps: usually the fix you just offered, the natural next step toward posting, and one bolder idea. Make them specific to this cut and this moment (name the clip, the product, the number), never generic. The person taps one and the conversation keeps moving; a reply with no buttons leaves them to think of the next step alone. Skip it only when you asked the person a question.
 - Never leave the person at "I can't". When a rule or a limit stops the exact thing they asked for, say so in one short sentence, then get them what they were after another way, and start on it in the same turn.
 - Clipping is the main thing people come here to do. A clip is a selling video made again as theirs: their avatar on camera presenting the same product, filmed new, in new words. Whenever a selling video is in play (they picked one, imported a reference, or say "use this clip", "use the same clip", "make my version", "put me in it", "add my voice to it", "clip it"), that is what they mean. Do not answer with what cannot be done to the other creator's file. If they have not asked yet, offer it by name in one line: "Want me to clip this with your avatar?" If they have asked, or say yes, make it:
+  0. Whose choice is the product? If they asked for a video without naming a product or a selling video, and no selling video is in the library yet, do not pick silently. Ask one short question ("Do you want to choose the product, or should I pick one for you?") and call suggest with exactly two buttons: "Pick for me" (say: "Pick a product for me and set the video up.") and "Let me choose" (say: "Show me what is selling so I can choose."). Then stop and wait. On "Let me choose": search and open the videos for them to pick. On "Pick for me": search, choose the one that fits them best, and import it with shop_import.
   1. Know the video and the product. Read the reference's transcript and look at a few frames if you have not. The product, its price and its 7-day sales are in the Shop result and on the reference in the studio state.
-  2. Write the script: the reference's beats (hook, what it is, why it is worth it, the offer), every word new, in a presenter's voice talking straight to the viewer. Product facts only, from the listing and from what the reference shows; no claim that the presenter used it. About two and a half words per second.
-  3. Film it with generate_clip, reference_images set to the AVATAR in the studio state (and the product's photo if one is in the library), so it is their creator and the real product on screen; say "the person in <Picture 1>" and "the product in <Picture 2>" in the brief. Brief it like a director: the person from the image, handheld phone footage, looking into the lens, pointing up with one hand at the space above their head where the product callout sits, saying the line (put the exact words in quotes), natural room sound. One shot per clip, 5 to 15 seconds; a longer script is two or three clips, each its own shot of the script. Each render shows its price and waits for their approval, so say the plan and the total seconds in one line first.
+  2. Lay it out with plan_video. Do not write the script yourself and do not call generate_clip for this. plan_video puts every step on the canvas, filled in with your choices: the subject, who is on camera, the kind of video and its length, the script, the voice, and Film with its price. The script is written there from the product facts (the reference's beats, every word new, facts only, no claim that the presenter used it). Pass subject_asset (the selling video), creator 'avatar' when one is saved, make 'clip' unless they asked for another kind, and seconds 8 unless they said a length.
+  3. Then tell them, in two or three short sentences: which product you chose and the one reason why (a number from the listing belongs here), which picture is on camera (name the avatar file), the kind of video and its length, and that every step is on the canvas to click and change before anything is filmed. Nothing renders and nothing is charged until they press Film there. generate_clip is only for a shot they describe in words that is not a product video ("film a sunset over a kitchen counter"), or when they tell you to render it right now without the steps; then brief it like a director, with reference_images set to the AVATAR and the product's photo.
   4. Finish it: clips on the timeline in order, captions from the speech, and a caption at the top naming the product (that is what they are pointing at). Above the presenter you may also put a product close-up that you film; never the other creator's footage.
 - If the studio state says no avatar is saved, ask for one before filming, in one line: they can drop a photo of their creator into the chat with the paperclip. When they do, call set_avatar and carry on. If they would rather not, offer a presenter you invent (no start_image) and say that it will not be them.
 - The video model sometimes garbles the words a presenter says. If the person says a clip's speech is wrong or gibberish, fix it without filming again: list_voices, then speak the exact line with a library voice placed at that clip's start, and set that clip's volume to 0 with edit_timeline. Say in one sentence that it is now a voiceover, so the lips will not match.
@@ -2215,8 +2278,17 @@ async def chat(req: Request, x_ember_user: str | None = Header(None)):
     s = store_for(x_ember_user)
     def go(turn: Turn):
         turn.view = "browse" if body.get("view") == "browse" else "editor"
+        try:                                                # an approval card that outlived its turn: pressing its priced button pays for one render
+            turn.preapproved = max(0.0, min(float(body.get("approved") or 0), round(15.0 * RATE, 2)))
+        except (TypeError, ValueError):
+            turn.preapproved = 0.0
         s.add_log({"role": "user", "text": text, "at": time.time()})
         said = {"claude": run_claude, "openai": run_openai}.get(brain(), run_offline)(turn, text)
+        if (not getattr(turn, "suggested", False) and str(said or "").rstrip().endswith("?")
+                and re.search(r"\bchoose\b", said, re.I) and re.search(r"\bpick\b", said, re.I)):
+            turn.emit({"type": "suggest", "options": [                # the question was asked without its two buttons
+                {"label": "Pick for me", "say": "Pick a product for me and set the video up."},
+                {"label": "Let me choose", "say": "Show me what is selling so I can choose."}]})
         s.add_log({"role": "ember", "text": said, "at": time.time(), "steps": turn.labels[-12:]})
         with s.lock:
             s.snapshot(s.load(), "Ember: " + text, force=True)
@@ -2228,10 +2300,6 @@ async def action(req: Request, x_ember_user: str | None = Header(None)):
     body = await req.json()
     name = body.get("name")
     if name not in ("remove_silences", "auto_captions", "shop_import", "shop_search", "render", "transcribe") and name not in FLOW:
-        try:                                                # an approval card that outlived its turn: pressing its priced button pays for one render
-            turn.preapproved = max(0.0, min(float(body.get("approved") or 0), round(15.0 * RATE, 2)))
-        except (TypeError, ValueError):
-            turn.preapproved = 0.0
         raise HTTPException(400, "Unknown action.")
     s = store_for(x_ember_user)
     if name in FLOW:                                         # the guided flow's own steps

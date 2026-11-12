@@ -684,6 +684,8 @@
       recordCard(ev);
     } else if (ev.type === 'suggest') {
       showNext(ev.options || []);
+    } else if (ev.type === 'workflow') {
+      pendingPlan = ev.plan;                                  // laid out on the canvas when the turn ends
     } else if (ev.type === 'approval') {
       askApproval(ev);
     } else if (ev.type === 'rendered') {
@@ -729,6 +731,7 @@
     ]);
     card._row = row; card.appendChild(row);
   }
+  var pendingPlan = null;
   function endTurn() {
     if (msgEl) msgEl.classList.remove('live');
     $$('.act', log).forEach(function (a) {                    // long runs fold into one line
@@ -741,6 +744,7 @@
     });
     setBusy(false);
     $$('.ask', log).forEach(function (c) { if (c._open) expire(c); });
+    if (pendingPlan && window.EmberFlow && window.EmberFlow.lay) { var plan = pendingPlan; pendingPlan = null; window.EmberFlow.lay(plan); }
     Object.keys(acting).forEach(actOff);
     if (nextEl) log.appendChild(nextEl);                      // next steps stay under everything else
     mood('happy'); clearTimeout(happyTimer); happyTimer = setTimeout(function () { if (!busy) mood(null); }, 1300);
