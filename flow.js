@@ -26,7 +26,7 @@
   };
   var T = {
     subject: { title: 'The subject', ask: 'What is the video about?', icon: I.bag, hint: 'A product, your own picture, or an idea.',
-      say: 'Pick what the video is about on the left: a selling video in Shop, or one of your own files in Media. Or chat about it with Ember.' },
+      say: 'Pick what the video is about: a selling video in Shop, or one of your own files in Media. Or chat about it with Ember.' },
     creator: { title: 'On camera', ask: 'Who is on camera?', icon: I.person, hint: 'Your face, a creator we make, or no one.',
       say: 'Who is on camera? Use your own face or creator, have us make one, or leave people out.' },
     format: { title: 'What to make', ask: 'What do you want to make?', icon: I.spark, hint: 'The kind of video and how long it runs.',
@@ -1394,7 +1394,7 @@
     draw(); renderPanel();
     if (claimed) { var c0 = claimed; claimed = null; if (G.guided && G.open === c0.id) complete(c0); }
     settle();
-    if (!G.view) { V = { x: 0, y: 0, k: 1 }; if (G.open && node(G.open)) focusOn(node(G.open)); else fit(); world.classList.remove('glide'); } else apply(false);
+    if (!G.view || window.innerWidth <= 760) { V = { x: 0, y: 0, k: 1 }; if (G.open && node(G.open)) focusOn(node(G.open)); else fit(); world.classList.remove('glide'); } else apply(false);   // a phone always opens on the whole board: a view saved on a wide screen would show nothing
   }
   function close() {
     if (root.hidden || root.classList.contains('leaving')) return;

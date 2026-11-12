@@ -137,4 +137,5 @@ cleared. The project (files, the cut, captions) is saved on the server.
 
 - Lip-synced voices other than the video model's own; library and own voices are voiceovers.
 - Supabase accounts and storage (`supabase/` holds the data model only).
-- The phone layout of the board works but is not tuned.
+- The phone layout is basic: the rail sits on top, the board opens fitted to the screen, a step opens
+  as a sheet above the message field. It has not been tried on a real phone.
