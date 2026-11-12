@@ -123,8 +123,44 @@
 
   /* ---------- library ---------- */
   var ICON_AUDIO = svg('<path d="M4 10v4M8 6v12M12 9v6M16 4v16M20 10v4"/>', 24);
+  /* ---------- picking for a step: the rail is where a step's choice is made ---------- */
+  var picking = null, pickTried = false, shopAsk = null;
+  function pickFor(opts) {                                    // opts: { step, title, onShop(video), onAsset(asset), onChat() }; null ends it
+    if (!opts && !picking) return;
+    var was = !!picking; picking = opts || null;
+    document.body.classList.toggle('picking', !!picking);
+    if (!picking) chatPoint(false);
+    if (!!picking !== was) applySizes();                     // the rail gets room while it is the place to choose
+    if (picking && !was) {
+      showTab('shop');
+      if (P && !((P.shop && P.shop.videos) || []).length && !pickTried && !shopBusy) { pickTried = true; shopSearch('', 'trending', 100); }
+    }
+    if (P) drawLibrary();
+  }
+  var chatTaker = null, forEl = null;
+  function chatPoint(on, o, quiet) {                          // the message field answers a step on the board. o: { label, hint, take(text) -> reply, cancel() }
+    var f = $('#chat-form'), box = $('#chat-input'), was = chatTaker;
+    chatTaker = on && o && o.take ? o : null;
+    f.classList.toggle('acting', !!on);                      // the circling light: type here
+    box.placeholder = on && o && o.hint ? o.hint : 'Tell Ember what to do';
+    if (!forEl) {
+      forEl = el('div', { class: 'dock-for', hidden: '' }, [el('span'), el('button', { type: 'button', 'aria-label': 'Back to normal chat', title: 'Back to normal chat', text: '\u2715', onclick: function () { chatPoint(false); } })]);
+      $('#dock').appendChild(forEl);
+    }
+    forEl.hidden = !chatTaker; if (chatTaker) forEl.firstChild.textContent = 'Answering ' + (o.label || 'this step');
+    if (on) box.focus();
+    if (!on && was && was.cancel && !quiet) was.cancel();
+  }
+  $('#chat-input').addEventListener('input', function () { if (this.value.trim()) $('#chat-form').classList.remove('acting'); });
   function drawLibrary() {
     var box = $('#lib-media'); box.textContent = '';
+    var oldBar = $('#lib-pick'); if (oldBar) oldBar.remove();
+    if (picking) {                                           // what the rail is being asked for, and the way out through chat
+      box.parentNode.insertBefore(el('div', { class: 'lib-pick', id: 'lib-pick' }, [
+        el('small', { text: picking.step || 'Step 1' }), el('b', { text: picking.title || 'Pick one' }),
+        el('p', { text: 'Pick a selling video in Shop, or one of your own files in Media.' }),
+        el('button', { type: 'button', class: 'btn', html: svg('<path d="M4 5.5h12v8H9l-3.5 3v-3H4z"/>') + 'Chat about it instead', onclick: function () { if (picking) picking.onChat(); } })]), box);
+    }
     var list = Object.keys(P.assets).map(function (k) { return P.assets[k]; }).reverse();
     if (!list.length) box.appendChild(el('p', { class: 'lib-empty', text: 'Your library is empty. Drop files here, or ask Ember to film a shot.' }));
     list.forEach(function (a) {
@@ -139,17 +175,34 @@
         a.kind !== 'image' ? el('button', { type: 'button', class: 'add', 'aria-label': 'Add ' + a.name + ' to the timeline', text: '+', onclick: function () { addAsset(a.id); } })
           : !a.reference ? el('button', { type: 'button', class: 'add me' + (a.id === P.avatar ? ' is' : ''), title: a.id === P.avatar ? 'This is your avatar. Click to clear.' : 'Use as my avatar', 'aria-label': 'Use ' + a.name + ' as my avatar',
               html: svg('<circle cx="10" cy="7" r="3.2"/><path d="M3.8 16.5c.8-3.2 3.200-4.800 6.200-4.800s5.400 1.600 6.200 4.800"/>'), onclick: function () { setAvatar(a.id === P.avatar ? null : a.id); } }) : null,
-        el('button', { type: 'button', class: 'rm', 'aria-label': 'Remove ' + a.name + ' from the library', text: '✕', onclick: function () {
+        el('button', { type: 'button', class: 'rm', 'aria-label': 'Remove ' + a.name + ' from the library', text: '✕', onclick: function (e) {             // deleting a file cannot be undone: the first click asks, the second deletes
+          var b = e.currentTarget;
+          if (!b.classList.contains('sure')) {
+            b.classList.add('sure'); b.textContent = 'Delete?';
+            return void setTimeout(function () { b.classList.remove('sure'); b.textContent = '✕'; }, 3500);
+          }
           api('/api/asset/' + a.id, { method: 'DELETE' }).then(function (p) { setProject(p); });
         } })
       ]);
       card.addEventListener('dragstart', function (e) { e.dataTransfer.setData('text/ember-asset', a.id); e.dataTransfer.effectAllowed = 'copy'; });
+      if (picking) {                                         // a click uses this file for the step that is waiting
+        card.classList.add(a.kind !== 'audio' && a.id !== P.avatar ? 'pickable' : 'unpickable');
+        card.addEventListener('click', function (e) { if (!e.target.closest('button') && picking) picking.onAsset(a); });
+      }
       box.appendChild(card);
     });
     var shop = $('#lib-shop'); shop.textContent = '';
     var vids = (P.shop && P.shop.videos) || [];
+    var sortNow = (P.shop && P.shop.sort) === 'top' ? 'top' : 'trending';
+    var sq = el('input', { type: 'search', class: 'sv-q', placeholder: 'Search TikTok Shop', value: shopAsk !== null ? shopAsk : (P.shop && P.shop.query) || '', 'aria-label': 'Search TikTok Shop' });
+    shop.appendChild(el('form', { class: 'sv-find', onsubmit: function (e) { e.preventDefault(); shopAsk = sq.value.trim(); shopSearch(shopAsk, sortNow, 100); } }, [sq, el('button', { type: 'submit', class: 'sv-go', 'aria-label': 'Search', title: 'Search', html: svg('<circle cx="9" cy="9" r="5"/><path d="M13 13l3.5 3.5"/>') })]));
+    shop.appendChild(el('div', { class: 'sv-sort' }, [['trending', 'Trending'], ['top', 'Most viewed']].map(function (o) {
+      return el('button', { type: 'button', 'aria-pressed': String(sortNow === o[0]), text: o[1], onclick: function () { shopAsk = sq.value.trim(); shopSearch(shopAsk, o[0], 100); } });
+    })));
+    if (shopBusy) shop.appendChild(el('p', { class: 'lib-empty', text: 'Searching TikTok Shop' }));
+    else if (shopNote) shop.appendChild(el('p', { class: 'lib-empty', text: shopNote }));
     $('#shop-count').textContent = vids.length ? String(vids.length) : '';
-    if (!vids.length) shop.appendChild(el('p', { class: 'lib-empty', text: 'Ask Ember what is selling, for example "find trending skincare videos". Results land here.' }));
+    if (!vids.length) shop.appendChild(el('p', { class: 'lib-empty', text: shopBusy ? '' : 'Search above, or ask Ember what is selling. Results land here.' }));
     if (vids.length) {
       var all = el('button', { type: 'button', class: 'sv-all', text: 'Open all ' + vids.length + ' videos', onclick: function () { openBrowse(defaultCanvas()); } });
       all.insertAdjacentHTML('beforeend', svg('<path d="M4 10h11M10.5 5.5L15 10l-4.5 4.5"/>'));
@@ -158,11 +211,13 @@
     var n = function (x) { return x >= 1e6 ? (x / 1e6).toFixed(1).replace('.0', '') + 'M' : x >= 1e3 ? Math.round(x / 1e3) + 'K' : String(x || 0); };
     vids.forEach(function (v, k) {                             // a grid of posters, the same cards as the full view
       var card = el('button', { type: 'button', class: 'vcard', title: v.product || v.title, onclick: function () {
+        if (picking) return void picking.onShop(v);        // a step is waiting for this choice: it takes it, without a chat turn
+        if (window.EmberFlow && window.EmberFlow.shopClick) return void window.EmberFlow.shopClick(v);   // the board decides what a click means; it is never handed to Ember behind the person's back
         send('I pick this one: "' + (v.product || v.title || 'video').slice(0, 80) + '" by @' + (v.creator || 'creator') + ' (video id ' + v.id + ').');
       } }, [
         el('img', { src: v.poster || '', alt: '', loading: 'lazy' }),
         el('span', { class: 'vtop' }, [el('span', { class: 'vchips' }, [el('span', { class: 'chip', text: n(v.views) + ' views' })])]),
-        el('span', { class: 'pick', text: 'Work from this' }),
+        el('span', { class: 'pick', text: picking ? 'Use this' : 'Work from this' }),
         el('span', { class: 'ov' }, [el('b', { text: v.product || v.title }), el('span', { text: (v.price ? '$' + v.price : '@' + (v.creator || 'creator')) + (v.units_7d ? ' · ' + n(v.units_7d) + ' sold' : '') })])
       ]);
       card.style.setProperty('--k', Math.min(k, 12));
@@ -811,10 +866,22 @@
       return pump();
     }).catch(function (e) { turnFailed = true; bubble('err', e.message || 'The connection dropped.'); }).then(endTurn);
   }
-  function send(text, approved) {                             // approved: a price the person just agreed to by pressing a priced button
+  function send(text, approved, typed) {                      // approved: a price the person just agreed to by pressing a priced button; typed: it came from the message field
     text = (text || '').trim();
-    if (!text || busy || !P) return;
-    chatOpen(true); bubble('you', text); waiting(true);       // the session opens the moment you talk
+    if (!text || !P) return;
+    if (busy) {                                              // one thing at a time: say so instead of swallowing the message
+      var cf = $('#chat-form'); cf.classList.remove('nope'); void cf.offsetWidth; cf.classList.add('nope');
+      $('#ember-state').textContent = 'Still working. Press stop, or wait';
+      chatOpen(true);
+      return;
+    }
+    if (chatTaker && typed) {                                // this message answers a step on the board: it fills that step and no model turn runs
+      var t = chatTaker; chatPoint(false, null, true);
+      bubble('you', text); input.value = ''; input.style.height = '';
+      var reply = t.take(text); if (reply) bubble('ember', reply);
+      return;
+    }
+    chatPoint(false); chatOpen(true); bubble('you', text); waiting(true);       // the session opens the moment you talk
     input.value = ''; input.style.height = '';
     var viewNow = isBrowse() ? 'browse' : 'editor';
     if (isBrowse() && text.length < 90 && /\b(back|return|go|take me|bring me)\b.{0,30}\beditor\b|\b(see|show|open)\b.{0,16}\beditor\b|\bclose (this|that|it|the (view|canvas|videos|grid))\b/i.test(text)) closeBrowse();
@@ -823,10 +890,10 @@
       .then(function () { saved('Saved'); return stream('/api/chat', { text: text, view: viewNow, approved: typeof approved === 'number' && approved > 0 ? approved : undefined }); });
   }
   function runAction(name, args) { if (!busy) stream('/api/action', { name: name, args: args }); }
-  $('#chat-form').addEventListener('submit', function (e) { e.preventDefault(); send(input.value); });
-  input.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input.value); } });
+  $('#chat-form').addEventListener('submit', function (e) { e.preventDefault(); send(input.value, undefined, true); });
+  input.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input.value, undefined, true); } });
   input.addEventListener('input', function () { input.style.height = ''; input.style.height = Math.min(170, input.scrollHeight) + 'px'; });
-  $('#chat-stop').addEventListener('click', function () { api('/api/stop', { method: 'POST' }).catch(function () {}); $('#ember-state').textContent = 'Stopping'; });
+  $('#chat-stop').addEventListener('click', function () { api('/api/stop', { method: 'POST', body: { what: 'chat' } }).catch(function () {}); $('#ember-state').textContent = 'Stopping'; });
   function drawChips() {}                                    // the row of chips is gone: next steps sit under Ember's replies
   /* ---------- your own voice: record it here, to picture ---------- */
   var MIC = '<rect x="7.5" y="3" width="5" height="9" rx="2.5"/><path d="M5 10a5 5 0 0 0 10 0M10 15v2.5"/>';
@@ -987,15 +1054,18 @@
       ['<path d="M3 10h2M7 6v8M10.5 8.5v3M14 4.5v11M17 10h0"/>', 'Clean up my cut', 'Cut the pauses and tighten it', 'Clean it up'],
       ['<rect x="2.5" y="4.5" width="15" height="11" rx="3"/><path d="M6 11.5h3M11 11.5h3"/>', 'Add captions', 'From the speech, timed', 'Add captions'],
       ['<path d="M4.5 7h11l-1 9h-9zM7.5 7V5.8a2.5 2.5 0 0 1 5 0V7"/>', 'What is selling?', 'Search TikTok Shop', 'Find what is trending on TikTok Shop right now and show me the best five to remake.'],
-      ['<path d="M10 3l1.6 4.4L16 9l-4.4 1.6L10 15l-1.6-4.4L4 9l4.4-1.6z"/>', 'Film a new shot', 'Rendered on our GPUs', null]
+      ['<path d="M10 3l1.6 4.4L16 9l-4.4 1.6L10 15l-1.6-4.4L4 9l4.4-1.6z"/>', 'Describe a video', 'Type what it is about', null]
     ];
     var box = el('div', { class: 'hello' }, [
       el('span', { class: 'orb hi', html: mascot(), 'aria-hidden': 'true' }),
       el('h3', { html: 'What are we <em>making</em> today?' }),
-      el('p', { text: on ? 'Tell me what you want this video to be. I cut, caption, voice and film. You can also just drag things around; I see what you change.'
+      el('p', { text: on ? 'Tell me what you want to make, or follow the steps on the board. I can pick a product, find hooks that sell, write the script, caption and export.'
                          : 'My full model is not connected on this machine, so for now I follow plain commands like "cut from 2 to 4" or "add captions". The editor works fully by hand.' }),
       el('div', { class: 'hello-cards' }, cards.map(function (c) {
-        return el('button', { type: 'button', html: svg(c[0]), onclick: function () { if (c[3]) send(c[3]); else { input.value = 'Film a 6 second vertical shot: '; input.focus(); } } },
+        return el('button', { type: 'button', html: svg(c[0]), onclick: function () { if (c[3]) return void send(c[3]);
+          if (window.EmberFlow && window.EmberFlow.describe && window.EmberFlow.describe()) return;   // step one, answered by typing: the same flow as the board
+          input.value = 'A new video about: '; input.focus();
+        } },
           [el('b', { text: c[1] }), el('span', { text: c[2] })]);
       }))
     ]);
@@ -1087,8 +1157,9 @@
     body.appendChild(tabs); body.appendChild(pane); show(tab || 'chats');
   }
   function shortcutsDialog() {
-    var body = dialog('Keyboard shortcuts', 'In the editor.'), rows = [['Space', 'Play or pause'], ['S', 'Split at the playhead'], ['Delete', 'Delete the selection'], ['Cmd Z', 'Undo'], ['Shift Cmd Z', 'Redo'],
-      ['Left / Right', 'Move the playhead (hold Shift for a second)'], ['Esc', 'Close a menu, a dialog or the Shop view']];
+    var body = dialog('Keyboard shortcuts', 'On the board.'), rows = [['Click a step', 'Open it'], ['Drag on the empty board', 'Select several nodes'],
+      ['Shift + click', 'Add a node to the selection, or take it out'], ['Backspace', 'Take the selected nodes off the board'], ['Space + drag', 'Move the board'],
+      ['Two-finger scroll', 'Move the board'], ['Pinch, or Cmd + scroll', 'Zoom'], ['Double-click the board', 'Add a step'], ['Esc', 'Close a panel, a menu or the selection']];
     body.appendChild(el('div', { class: 'keys-list' }, rows.map(function (r) { return el('div', {}, [el('kbd', { text: r[0] }), el('span', { text: r[1] })]); })));
   }
 
@@ -1203,14 +1274,17 @@
         box.appendChild(el('div', { class: 'vbar' }, [el('h4', { class: 'blk-h', text: (b.heading || 'Videos') + ' · ' + Math.min(vids.length, b.limit || 1000) }), vids.length > 1 ? seg : null]));
         items = vids.slice(0, b.limit || 1000).map(function (v, i) {
           return { img: v.poster, title: v.product || v.title, sub: '@' + (v.creator || 'creator') + (v.seconds ? ' · ' + v.seconds + 's' : '') + (v.price ? ' · $' + v.price : ''),
-            chip: num(v.views) + ' views', chip2: v.units_7d ? num(v.units_7d) + ' sold / 7d' : '', hot: i === 0 && !!sortKey, rank: sortKey && i < 3 ? '#' + (i + 1) : '',
+            chip: num(v.views) + ' views', chip2: v.units_7d ? num(v.units_7d) + ' sold / 7d' : '', hot: i === 0 && !!sortKey, rank: sortKey && i < 3 ? '#' + (i + 1) : '', v: v,
             say: 'I pick this one: "' + (v.product || v.title || 'video').slice(0, 80) + '" by @' + (v.creator || 'creator') + ' (video id ' + v.id + ').' };
         });
       }
       if (b.source === 'library' && b.heading) box.appendChild(el('h4', { class: 'blk-h', text: b.heading + ' · ' + items.length }));
       if (!items.length) box.appendChild(el('p', { class: 'lib-empty', text: 'Nothing to show here yet.' }));
       items.forEach(function (it, k) {                       // an even grid: every card the same shape
-        var card = el('button', { type: 'button', class: 'vcard', onclick: function () { pick(it.say); } }, [
+        var card = el('button', { type: 'button', class: 'vcard', onclick: function () {
+          if (it.v && window.EmberFlow && window.EmberFlow.shopClick) { closeBrowse(); return void window.EmberFlow.shopClick(it.v); }   // a video in the grid: the board takes it as step one
+          pick(it.say);
+        } }, [
           el('img', { src: it.img || '', alt: '', loading: 'lazy' }),
           el('span', { class: 'vtop' }, [el('span', { class: 'vchips' }, [it.rank ? el('span', { class: 'chip rank', text: it.rank }) : null, it.chip ? el('span', { class: 'chip' + (it.hot ? ' hot' : ''), text: it.chip }) : null]), it.chip2 ? el('span', { class: 'chip', text: it.chip2 }) : null]),
           el('span', { class: 'pick', text: 'Work from this' }),
@@ -1356,7 +1430,9 @@
     applySizes.t = setTimeout(function () { body.classList.remove('sizing'); }, 150);
     var put = function (node, name, v) { if (phone || !v) node.style.removeProperty(name); else node.style.setProperty(name, Math.round(v) + 'px'); };
     put(body, '--chatw', sizes.chat && clamp(sizes.chat, 300, Math.max(300, Math.min(680, innerWidth - 640))));
-    put(edBox, '--rail', sizes.rail && clamp(sizes.rail, 170, Math.max(170, Math.min(560, edBox.clientWidth - 330))));
+    var railW = sizes.rail && clamp(sizes.rail, 170, Math.max(170, Math.min(560, edBox.clientWidth - 330)));
+    if (picking) railW = Math.max(railW || 0, Math.min(440, Math.max(170, edBox.clientWidth - 330)));   // choosing happens in the rail: give it room
+    put(edBox, '--rail', railW);
     put(edBox, '--tlh', sizes.tl && clamp(sizes.tl, 236, Math.max(236, Math.min(600, edBox.clientHeight - 230))));
     measure();
     if (P) drawTimeline();
@@ -1452,7 +1528,7 @@
   /* ---------- what the guided flow (flow.js) may use ---------- */
   window.EmberStudio = { $: $, $$: $$, el: el, svg: svg, api: api, headers: headers, mascot: mascot, fmt: fmt, clamp: clamp, user: user,
     project: function () { return P; }, status: function () { return STATUS; }, setProject: setProject, setAvatar: setAvatar,
-    acting: function () { return busy; },
+    acting: function () { return busy; }, pick: pickFor, chatPoint: chatPoint,
     bubble: bubble, showNext: showNext, seek: seek, projectId: projectId, newProject: newProject, quiet: quiet, send: send,
     onChange: function (fn) { changeListeners.push(fn); },
     ask: function (text) { input.value = text; input.focus(); input.setSelectionRange(text.length, text.length); },

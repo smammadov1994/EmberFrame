@@ -1429,6 +1429,11 @@ def t_plan_video(turn: Turn, subject_asset: str | None = None, idea: str | None 
             raise ValueError("No avatar is saved. Ask for a photo of their creator (the paperclip), or pass creator 'describe' or 'none'.")
         plan["creator"] = {"kind": "avatar", "asset": av["id"]}
         who = av["name"]
+    elif creator == "ask":                                   # only the subject is set: the person picks who is on camera on the canvas
+        turn.emit({"type": "workflow", "plan": {"subject": plan["subject"], "creator": {"kind": "ask"}}})
+        return {"laid_out": True, "subject": chosen, "next": "who is on camera",
+                "note": "Step one is set on the canvas and the next step, who is on camera, is open for the person to choose. "
+                        "Tell them that in one sentence. Nothing is filmed or charged. Do not call generate_clip."}
     elif creator == "describe" and str(creator_text or "").strip():
         plan["creator"] = {"kind": "describe", "text": str(creator_text).strip()[:300]}
         who = "a presenter we make"
@@ -1561,11 +1566,11 @@ TOOLS: list[dict[str, Any]] = [
    "the script, the voice, and Film with its price. Use this whenever the person asks you to make, film, clip or promote a video; do not call generate_clip for that. "
    "Nothing is filmed: the script is written on the canvas from the product facts, the person can click any step to change it, and they press Film themselves. "
    "subject_asset is a library file (the selling video you imported, or their own picture or clip); use idea instead when the video is only described in words. "
-   "creator: 'avatar' (their saved avatar), 'describe' (with creator_text) or 'none'. make: 'clip' (the presenter points up at the product callout), 'pitch' (holds it up to the lens), "
+   "creator: 'avatar' (their saved avatar), 'describe' (with creator_text), 'none', or 'ask' (set only the subject and leave who is on camera, and every later step, for the person to choose on the canvas; use it when they described a video without saying who is in it). make: 'clip' (the presenter points up at the product callout), 'pitch' (holds it up to the lens), "
    "'showcase' (product only, nobody speaks) or 'free'. seconds: 6, 8, 10, 12 or 15. voice: 'presenter' (the video model speaks, lips match), 'library' (voice_id and voice_name from list_voices) "
    "or 'own' (voice_asset, a recording of theirs).",
   "input_schema": {"type": "object", "properties": {"subject_asset": {"type": "string"}, "idea": {"type": "string"},
-    "creator": {"type": "string", "enum": ["avatar", "describe", "none"]}, "creator_text": {"type": "string"},
+    "creator": {"type": "string", "enum": ["avatar", "describe", "none", "ask"]}, "creator_text": {"type": "string"},
     "make": {"type": "string", "enum": ["clip", "pitch", "showcase", "free"]}, "seconds": {"type": "number"},
     "voice": {"type": "string", "enum": ["presenter", "library", "own"]}, "voice_id": {"type": "string"}, "voice_name": {"type": "string"},
     "voice_asset": {"type": "string"}}}},
@@ -1634,7 +1639,7 @@ How to work
   0. Whose choice is the product? If they asked for a video without naming a product or a selling video, and no selling video is in the library yet, do not pick silently. Ask one short question ("Do you want to choose the product, or should I pick one for you?") and call suggest with exactly two buttons: "Pick for me" (say: "Pick a product for me and set the video up.") and "Let me choose" (say: "Show me what is selling so I can choose."). Then stop and wait. On "Let me choose": search and open the videos for them to pick. On "Pick for me": search, choose the one that fits them best, and import it with shop_import.
   1. Know the video and the product. Read the reference's transcript and look at a few frames if you have not. The product, its price and its 7-day sales are in the Shop result and on the reference in the studio state.
   2. Lay it out with plan_video. Do not write the script yourself and do not call generate_clip for this. plan_video puts every step on the canvas, filled in with your choices: the subject, who is on camera, the kind of video and its length, the script, the voice, and Film with its price. The script is written there from the product facts (the reference's beats, every word new, facts only, no claim that the presenter used it). Pass subject_asset (the selling video), creator 'avatar' when one is saved, make 'clip' unless they asked for another kind, and seconds 8 unless they said a length.
-  3. Then tell them, in two or three short sentences: which product you chose and the one reason why (a number from the listing belongs here), which picture is on camera (name the avatar file), the kind of video and its length, and that every step is on the canvas to click and change before anything is filmed. Nothing renders and nothing is charged until they press Film there. generate_clip is only for a shot they describe in words that is not a product video ("film a sunset over a kitchen counter"), or when they tell you to render it right now without the steps; then brief it like a director, with reference_images set to the AVATAR and the product's photo.
+  3. Then tell them, in two or three short sentences: which product you chose and the one reason why (a number from the listing belongs here), which picture is on camera (name the avatar file), the kind of video and its length, and that every step is on the canvas to click and change before anything is filmed. Nothing renders and nothing is charged until they press Film there. A video they only describe in words, with no product ("a video about a dinosaur"), is laid out the same way and never rendered from the chat: plan_video with idea and creator 'ask', so they still choose who is on camera, the style, the script and the voice on the canvas; skip the product question for it. generate_clip is only for when they tell you in so many words to render right now without the steps, or for one extra shot inside a video that already has its steps; then brief it like a director, with reference_images set to the AVATAR and the product's photo.
   4. Finish it: clips on the timeline in order, captions from the speech, and a caption at the top naming the product (that is what they are pointing at). Above the presenter you may also put a product close-up that you film; never the other creator's footage.
 - If the studio state says no avatar is saved, ask for one before filming, in one line: they can drop a photo of their creator into the chat with the paperclip. When they do, call set_avatar and carry on. If they would rather not, offer a presenter you invent (no start_image) and say that it will not be them.
 - The video model sometimes garbles the words a presenter says. If the person says a clip's speech is wrong or gibberish, fix it without filming again: list_voices, then speak the exact line with a library voice placed at that clip's start, and set that clip's volume to 0 with edit_timeline. Say in one sentence that it is now a voiceover, so the lips will not match.
@@ -1903,6 +1908,10 @@ def flow_script(turn: Turn, args: dict[str, Any]) -> None:
     p = turn.project()
     if subj.get("kind") == "shop":
         row = next((r for r in ((p.get("shop") or {}).get("videos") or []) if str(r["id"]) == str(subj.get("id"))), None)
+        if not row and subj.get("title"):                    # the results have moved on since this was picked: work from what the step kept
+            row = {"id": str(subj.get("id")), "title": subj.get("title"), "product": subj.get("title"), "price": subj.get("price"),
+                   "units_7d": subj.get("units"), "creator": subj.get("creator"), "url": subj.get("url"), "image": subj.get("image"),
+                   "rating": subj.get("rating"), "poster": subj.get("poster")}
         if not row:
             raise ValueError("That Shop video is no longer in your results. Search again and pick it.")
         done = flow_step(turn, "Pulling the product facts")
@@ -2162,7 +2171,7 @@ class ProjectScope:
         finally:
             PROJECT.reset(token)
 app.add_middleware(ProjectScope)
-TURNS: dict[str, Turn] = {}
+TURNS: dict[str, list[Turn]] = {}                        # every running job of a person: a chat turn and a board job (a render) can overlap
 
 def store_for(user: str | None) -> Store:
     return Store(user or "local")
@@ -2321,10 +2330,11 @@ def get_review(x_ember_user: str | None = Header(None)):
 def history(x_ember_user: str | None = Header(None)):
     return store_for(x_ember_user).log()
 
-def sse(turn_fn: Callable[[Turn], None], s: Store) -> StreamingResponse:
+def sse(turn_fn: Callable[[Turn], None], s: Store, kind: str = "chat") -> StreamingResponse:
     q: queue.Queue = queue.Queue()
     turn = Turn(s, q.put)
-    TURNS[s.user] = turn
+    turn.kind = kind                                         # "chat": Ember's own turns; "board": a step run from the canvas
+    TURNS.setdefault(s.user, []).append(turn)
     def work():
         try:
             turn_fn(turn)
@@ -2337,6 +2347,8 @@ def sse(turn_fn: Callable[[Turn], None], s: Store) -> StreamingResponse:
                    f"Something went wrong ({name}).")
             q.put({"type": "error", "message": msg, "detail": str(e)[:300]})
         finally:
+            if turn in TURNS.get(s.user, []):
+                TURNS[s.user].remove(turn)
             q.put({"type": "done"})
             q.put(None)
     threading.Thread(target=work, daemon=True).start()
@@ -2395,7 +2407,7 @@ async def action(req: Request, x_ember_user: str | None = Header(None)):
                 turn.emit({"type": "error", "message": "The render machine did not answer. Nothing was charged. Try again in a moment."
                            if name in ("flow_film", "flow_picture") else "The voice could not be recorded. Try again in a moment."
                            if name == "flow_voice" else "That step did not finish. Try again in a moment.", "detail": type(e).__name__})
-        return sse(flow_go, s)
+        return sse(flow_go, s, "board")
     def go(turn: Turn):
         sid = new_id("s")
         turn.emit({"type": "step", "id": sid, "name": name, "label": TOOL_BY_NAME[name]["label"], "state": "run"})
@@ -2409,8 +2421,7 @@ async def action(req: Request, x_ember_user: str | None = Header(None)):
 @app.post("/api/approve")
 async def approve(req: Request, x_ember_user: str | None = Header(None)):
     body = await req.json()
-    turn = TURNS.get(store_for(x_ember_user).user)
-    a = turn.approvals.get(body.get("id")) if turn else None
+    a = next((t.approvals[body.get("id")] for t in TURNS.get(store_for(x_ember_user).user, []) if body.get("id") in t.approvals), None)
     if not a:
         raise HTTPException(404, "That request has expired.")
     a["allow"] = bool(body.get("allow"))
@@ -2418,10 +2429,15 @@ async def approve(req: Request, x_ember_user: str | None = Header(None)):
     return {"ok": True}
 
 @app.post("/api/stop")
-def stop(x_ember_user: str | None = Header(None)):
-    turn = TURNS.get(store_for(x_ember_user).user)
-    if turn:
-        turn.stop.set()
+async def stop(req: Request, x_ember_user: str | None = Header(None)):
+    """Stop this person's running jobs. what: "chat" (Ember's turn), "board" (a step run from the canvas, such as a render), or nothing for all."""
+    try:
+        what = (await req.json()).get("what")
+    except Exception:
+        what = None
+    for turn in list(TURNS.get(store_for(x_ember_user).user, [])):
+        if what in (None, getattr(turn, "kind", "chat")):
+            turn.stop.set()
     return {"ok": True}
 
 @app.post("/api/post")

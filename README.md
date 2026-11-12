@@ -63,6 +63,8 @@ uv run server/ember.py
 
 Then open <http://127.0.0.1:4180/studio.html>.
 
+How the studio behaves, step by step, and the rules it enforces: [docs/STUDIO.md](docs/STUDIO.md).
+
 What Ember can do, by chat or by its buttons:
 
 - **Edit the cut:** trim, split, cut a range, reorder, captions, volume. You can also drag everything by hand; Ember sees what you change.
@@ -76,7 +78,7 @@ What Ember can do, by chat or by its buttons:
 
 How it is put together:
 
-- One model, one streaming loop, fourteen tools. No router in front of the model and no second writer model.
+- One model, one streaming loop and a set of tools. No router in front of the model.
 - The editor's project is the shared state. You change it by dragging; Ember changes it through `edit_timeline`; every message carries a fresh picture of it.
 - Anything that costs money or leaves the building goes through an approval you tap.
 - Users never reach the GPU. The server is the only holder of the machine address and token, each user has their own folder, and a user can only stop their own render.

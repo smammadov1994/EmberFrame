@@ -26,7 +26,7 @@
   };
   var T = {
     subject: { title: 'The subject', ask: 'What is the video about?', icon: I.bag, hint: 'A product, your own picture, or an idea.',
-      say: 'Start with what the video is about. A product that is already selling is the fastest way in. Your own pictures, or just an idea, work too.' },
+      say: 'Pick what the video is about on the left: a selling video in Shop, or one of your own files in Media. Or chat about it with Ember.' },
     creator: { title: 'On camera', ask: 'Who is on camera?', icon: I.person, hint: 'Your face, a creator we make, or no one.',
       say: 'Who is on camera? Use your own face or creator, have us make one, or leave people out.' },
     format: { title: 'What to make', ask: 'What do you want to make?', icon: I.spark, hint: 'The kind of video and how long it runs.',
@@ -90,7 +90,7 @@
   function validate() {                                      // the library may have changed since this was saved
     G.nodes.forEach(function (n) {
       var d = n.d;
-      if (d.subject && d.subject.kind === 'asset' && !has(d.subject.asset)) { d.subject = null; changed(n); }
+      if (d.subject && (d.subject.kind === 'asset' || d.subject.kind === 'reference') && !has(d.subject.asset)) { d.subject = null; changed(n); }   // the file was deleted: the step is open again
       if (d.creator && d.creator.kind === 'avatar' && !has(d.creator.asset)) { d.creator = null; changed(n); }
       if (d.voice && d.voice.kind === 'own' && !has(d.voice.asset)) d.voice = null;
       if (d.film && d.film.state === 'done' && !has(d.film.asset)) d.film = null;
@@ -158,6 +158,31 @@
     });
     return got;
   }
+  function filming(n) {                                       // a clip is being filmed: anywhere on the board, or from the steps that follow n
+    var run = function (m) { return m.type === 'film' && m.d.film && m.d.film.state === 'run'; };
+    if (!n) return G.nodes.filter(run)[0] || null;
+    return run(n) ? n : below(n.id).filter(run)[0] || null;
+  }
+  function shopClick(v) {                                     // a Shop video was clicked in the rail or the grid. The board decides what that means; Ember is not sent off on it.
+    var f = filming();
+    if (f) return void stop(f, 'A clip is being filmed right now. Wait for it to finish before starting from another video.');
+    if (S.acting && S.acting()) return void stop(null, 'Ember is working. Wait for it to finish, then pick a video.');
+    var n = G.nodes.filter(function (m) { return m.type === 'subject' && !m.d.subject; })[0];
+    if (n) {                                                 // step one is still empty: this video is what the video is about
+      delete n.d.via;
+      n.d.subject = { kind: 'shop', id: String(v.id), title: v.product || v.title || 'Video', poster: v.poster, price: v.price, units: v.units_7d, creator: v.creator, url: v.url, image: v.image, rating: v.rating };
+      changed(n); S.pick(null);
+      return void (G.guided ? complete(n) : open(n.id));
+    }
+    var has = G.nodes.filter(function (m) { return m.type === 'subject' && m.d.subject; })[0];
+    stop(null, 'This video already has its subject' + (has ? ' (' + called(has) + ')' : '') + '. To use another product, click step 1 and pick it there, or press Start over for a new video.');
+  }
+  function addRight(asset, fin) {                             // something new goes to the right of everything on the board, and the final video stays last
+    var rest = G.nodes.filter(function (n) { return n.type !== 'final'; });
+    var m = addMedia(asset, rest.length ? Math.max.apply(null, rest.map(function (n) { return n.x; })) + NW + GAP : 0, fin ? fin.y : 0);
+    if (fin && fin.x < m.x + NW + GAP) fin.x = m.x + NW + GAP;
+    return m;
+  }
   function addMedia(asset, x, y) { var at = freeSpot(x, y), n = { id: rid(), type: 'media', x: at.x, y: at.y, d: { asset: asset } }; G.nodes.push(n); fill(n); return n; }
   function sync() {                                           // the canvas follows the project: files that exist, and the cut wired into Final
     var p = P(); if (!p) return;
@@ -180,10 +205,12 @@
       if (a.source === 'product' || mediaNode(id) || adopt(a)) return;
       var lead = a.source === 'generated' && G.lead && node(G.lead);   // a clip Ember filmed from the steps it filled in: it comes out of the last of them
       if (lead && !outs(lead.id).length && !G.nodes.some(function (m) { return m.type === 'film' && m.d.film && m.d.film.state === 'run'; })) {
-        var made = addMedia(id, lead.x + NW + GAP, lead.y); G.wires.push({ from: lead.id, to: made.id }); G.lead = null; return;
+        var made = addMedia(id, lead.x + NW + GAP, lead.y); G.wires.push({ from: lead.id, to: made.id }); G.lead = null;
+        if (fin.x < made.x + NW + GAP) fin.x = made.x + NW + GAP;   // the final video stays to the right of the new clip
+        return;
       }
       if (current() && a.source !== 'generated' && a.source !== 'edited') return;   // guided, a step is waiting: a new file stays in the media list, not loose on the board
-      addMedia(id, fin.x - (NW + GAP), fin.y).d.auto = 1;
+      addRight(id, fin).d.auto = 1;
     });
     G.nodes = G.nodes.filter(function (n) {                    // a file a workflow node already holds (the avatar picked in On camera, the selling video picked in The subject) is not also a loose node
       if (n.type !== 'media' || !n.d.auto || G.wires.some(function (w) { return w.from === n.id || w.to === n.id; }) || inCut(n.d.asset)) return true;
@@ -195,7 +222,7 @@
       });
     });
     var cut = {}; p.tracks.video.concat(p.tracks.audio).forEach(function (c) { cut[c.asset] = 1; });
-    Object.keys(cut).forEach(function (id) { var m = mediaNode(id) || addMedia(id, fin.x - (NW + GAP), fin.y); if (!wired(m.id, fin.id)) G.wires.push({ from: m.id, to: fin.id }); });
+    Object.keys(cut).forEach(function (id) { var m = mediaNode(id) || addRight(id, fin); if (!wired(m.id, fin.id)) G.wires.push({ from: m.id, to: fin.id }); });
     G.wires = G.wires.filter(function (w) {
       var a = node(w.from), b = node(w.to); if (!a || !b) return false;
       return b.id !== fin.id || (a.type === 'media' && cut[a.d.asset]);
@@ -344,6 +371,7 @@
 
   function lay(plan) {                                        // Ember chose every step: they go on the board filled in, and it stops before filming
     if (!plan || !plan.subject || root.hidden) return;
+    if (filming()) return void stop(filming(), 'Ember set up a new video, but a clip is still being filmed. Ask again when it is done.');
     sync();
     var p = P(), s = plan.subject, subj, a = s.asset && p.assets[s.asset];
     if (s.kind === 'idea') subj = { kind: 'idea', text: s.text, title: s.text };
@@ -351,7 +379,8 @@
     else return;
     var n = (a && holder(a)) || G.nodes.filter(function (m) { return m.type === 'subject' && !m.d.subject; })[0];
     if (!n) n = addNode('subject', 0, Math.max.apply(null, G.nodes.map(function (m) { return m.y; })) + NH + 90);
-    n.d.subject = subj;
+    n.d.subject = subj; delete n.d.via;
+    if (!plan.creator || plan.creator.kind === 'ask') { changed(n); G.lead = null; keep(); draw(); return void complete(n); }   // only the subject was set: the person chooses the rest, step by step
     var step = function (type, fillIn) {                      // the next step along this chain: the one already there, or a new one
       var m = outs(n.id).filter(function (x) { return x.type === type; })[0] || addNode(type, n.x + NW + GAP, n.y, n.id);
       fillIn(m.d); n = m; return m;
@@ -393,7 +422,8 @@
         : t === 'format' && !c.subject ? 'Needs a subject first.'
         : t === 'script' && !c.format ? 'Needs "What to make" first.'
         : (t === 'voice' || t === 'film') && !c.script ? 'Needs the script first.'
-        : t === 'voice' && c.film ? 'Goes before filming.' : '';
+        : t === 'voice' && c.film ? 'Goes before filming.'
+        : t === 'voice' && c.script.d.script && !c.script.d.script.line ? 'Nobody speaks in this video.' : '';
     });
     return out;
   }
@@ -422,7 +452,7 @@
   function connect(a, b) {
     if (a.id === b.id || G.wires.some(function (w) { return w.from === a.id && w.to === b.id; })) return;
     if (b.id === a.id || below(b.id).some(function (m) { return m.id === a.id; })) return void say('That would make a loop. A wire has to lead forward.');
-    var no = wireRule(a, b); if (no) return void say(no);
+    var no = filming(b) ? 'That step is being filmed right now. Wire it after the render ends.' : wireRule(a, b); if (no) return void say(no);
     if (link(a, b)) return;
     if (answers(a, b)) take(a, b);
     G.wires.push({ from: a.id, to: b.id }); clear(b, true); changed(b);
@@ -435,6 +465,7 @@
   }
   function removeNode(n) {
     if (G.nodes.length < 2 || n.type === 'final') return;
+    if (filming(n)) return void stop(filming(n), 'This is being filmed right now. Stop the render in "Film it" first, or wait for it to finish.');
     if (n.type === 'media' && inCut(n.d.asset)) S.cut.remove(n.d.asset);        // off the canvas means out of the video
     outs(n.id).forEach(function (m) { clear(m, true); changed(m); });
     G.nodes = G.nodes.filter(function (m) { return m.id !== n.id; });
@@ -451,6 +482,10 @@
   function short(x) { x = Number(x) || 0; return x >= 1e6 ? (x / 1e6).toFixed(1).replace('.0', '') + 'M' : x >= 1e3 ? Math.round(x / 1e3) + 'K' : String(x); }
   function say(text) { var p = $('#flow-say'); if (p.textContent === text) return; var q = el('p', { id: 'flow-say', text: text }); p.parentNode.replaceChild(q, p); }
   function sse(name, args, on) {
+    if (S.acting && S.acting()) {                            // one job at a time: Ember is mid-turn, so the board waits
+      on({ type: 'error', message: 'Ember is working on something. Try again when it is done.' });
+      return Promise.resolve();
+    }
     return fetch('/api/action', { method: 'POST', headers: S.headers(true), body: JSON.stringify({ name: name, args: args }) }).then(function (r) {
       if (!r.ok || !r.body) throw new Error('The studio did not answer.');
       var reader = r.body.getReader(), dec = new TextDecoder(), buf = '';
@@ -613,18 +648,19 @@
     if (n.type === 'media' || n.type === 'final') return void paintMedia(n, e);
     var m = T[n.type], done = isDone(n), need = needs(n), sum = summary(n), box = e.querySelector('.gn-s');
     var cur = !G.open && current(), wait = !!cur && cur.id === n.id;   // nothing is open: the step that is waiting asks to be clicked
-    e.className = 'gn ' + n.type + (done ? ' done' : '') + (n.id === G.open ? ' open' : '') + (wait ? ' next' : '') + (need.length ? ' need' : '') + (e.classList.contains('new') ? ' new' : '') +
+    var chatty = (n.type === 'subject' || n.type === 'creator') && n.d.via === 'chat' && !done;   // this step is being answered in the chat
+    e.className = 'gn ' + n.type + (done ? ' done' : '') + (n.id === G.open ? ' open' : '') + (wait ? ' next' : '') + (chatty ? ' chatty' : '') + (need.length ? ' need' : '') + (e.classList.contains('new') ? ' new' : '') +
       (n.type === 'film' && n.d.film && n.d.film.state === 'run' ? ' busy' : '');
     e.style.left = n.x + 'px'; e.style.top = n.y + 'px';
     var ic = e.querySelector('.fn-ic'), pic = done && sum && sum.img;   // a finished step shows what was chosen: its picture and its name
     ic.classList.toggle('pic', !!pic); ic.style.backgroundImage = pic ? 'url("' + sum.img + '")' : ''; ic.innerHTML = pic ? '' : svg(m.icon);
-    e.querySelector('b').textContent = done && sum ? sum.t : done || sum ? m.title : m.ask;
-    e.querySelector('.fn-t small').textContent = done ? m.title : need.length ? 'Waiting' : n.id === G.open ? 'Now' : wait ? (n.type === 'subject' ? 'Start here' : 'Next: click to open') : 'To do';
+    e.querySelector('b').textContent = done && sum ? sum.t : chatty ? (n.type === 'creator' ? 'Describing who is on camera' : 'Typing what it is about') : done || sum ? m.title : m.ask;
+    e.querySelector('.fn-t small').textContent = done ? m.title : chatty ? 'Chat' : need.length ? 'Waiting' : n.id === G.open ? 'Now' : wait ? (n.type === 'subject' ? 'Start here' : 'Next') : 'To do';
     e.title = done && sum ? m.title + ': ' + sum.t : '';
     box.textContent = '';
     if (done) return;                                        // a finished node says so with its green border, nothing more
     if (sum) { var th = el('span', { class: 'th', html: sum.img ? '' : svg(m.icon) }); if (sum.img) th.style.backgroundImage = 'url("' + sum.img + '")'; box.appendChild(th); box.appendChild(el('div', {}, [el('b', { text: sum.t }), el('span', { text: sum.s })])); }
-    else box.appendChild(el('p', { text: need.length ? 'Needs ' + need.map(function (x) { return T[x.type].title.toLowerCase(); }).join(' and ') + ' first.' : m.hint }));
+    else box.appendChild(el('p', { text: need.length ? 'Needs ' + need.map(function (x) { return T[x.type].title.toLowerCase(); }).join(' and ') + ' first.' : chatty ? 'Type in the box at the bottom of the board.' : m.hint }));
   }
   function paintMedia(n, e) {
     var p = P(), ic = e.querySelector('.fn-ic'), small = e.querySelector('.fn-t small'), b = e.querySelector('.fn-t b'), box = e.querySelector('.gn-s');
@@ -658,7 +694,8 @@
     drawWires();
     var sw = $('#flow-guided'); sw.setAttribute('aria-checked', String(!!G.guided));
     var on = G.open && node(G.open), left = G.nodes.filter(function (n) { return n.type !== 'final' && !isDone(n); }).length;
-    $('#flow-step').textContent = on ? T[on.type].title : left ? left + ' to do' : 'Your canvas';
+    var cs = !on && current();
+    $('#flow-step').textContent = on ? T[on.type].title : cs ? 'Step ' + (ORDER.indexOf(cs.type) + 1) + ' of 6' : left ? left + ' to do' : 'Your canvas';
     if (on) { var nd = needs(on); say(nd.length ? 'This one needs ' + nd.map(function (x) { return T[x.type].title.toLowerCase(); }).join(' and ') + ' first. Add it from here, or drag a wire into this node.' : guideFor(on)); }
     else {
       var cur = current();
@@ -826,14 +863,15 @@
     if (selCount()) {                                         // several selected: they all go
       e.preventDefault();
       var ids = Object.keys(SEL), gone = 0; SEL = {};
-      ids.forEach(function (id) { var m = node(id); if (!m || m.type === 'final' || G.nodes.filter(function (x) { return x.type !== 'final'; }).length < 2) return; removeNode(m); gone++; });
-      return void say(gone + (gone === 1 ? ' node' : ' nodes') + ' taken off the board. Files stay in your media.');
+      ids.forEach(function (id) { var m = node(id); if (!m || m.type === 'final' || G.nodes.filter(function (x) { return x.type !== 'final'; }).length < 2) return; removeNode(m); if (!node(id)) gone++; });
+      return void (gone ? say(gone + (gone === 1 ? ' node' : ' nodes') + ' taken off the board. Files stay in your media.') : 0);
     }
     var n = node(G.open); if (!n) return;
     e.preventDefault();
     if (n.type === 'final') return void say('The final video stays. Unwire a clip from it to take that clip out.');
     if (G.nodes.filter(function (m) { return m.type !== 'final'; }).length < 2) return void say('This is the only step on the board. Use Start over to begin again.');
     var file = n.type === 'media'; removeNode(n);
+    if (node(n.id)) return;                                  // it was not removed (it is being filmed): the reason is already on screen
     say(file ? 'Taken off the board. The file is still in your media.' : 'Step removed.');
   });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !root.hidden) { clearSel(); if (!menuEl.hidden) hideMenu(); else if (G.open) { G.open = null; keep(); draw(); renderPanel(); } } });
@@ -842,6 +880,8 @@
   function renderPanel() {
     var n = G.open && node(G.open);
     S.parkMonitor();                                          // the preview player lives in the Final panel only while that is open
+    if (n && n.type === 'subject') { panel.hidden = true; root.classList.remove('has-panel'); return void pickSubject(n); }   // step one has no panel: the left rail is where it is chosen
+    S.pick(null);
     panel.hidden = !n; root.classList.toggle('has-panel', !!n);
     if (!n) return;
     var m = T[n.type], body = el('div', { class: 'fp-body' }), need = needs(n);
@@ -850,6 +890,13 @@
     panel.appendChild(el('header', { class: 'fp-h' }, [el('span', { class: 'fn-ic', html: svg(m.icon) }), el('div', { class: 'fn-t' }, [el('small', { text: m.title }), el('b', { text: m.ask })]),
       el('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Close', title: 'Close (Esc)', html: svg(I.x), onclick: function () { G.open = null; keep(); draw(); renderPanel(); } })]));
     panel.appendChild(body);
+    if (n.type !== 'film' && n.type !== 'media' && n.type !== 'final' && filming(n)) {   // its clip is being filmed with these choices: read-only until that ends
+      var fm = filming(n), sum0 = summary(n);
+      body.appendChild(el('div', { class: 'fp-need' }, [el('span', { class: 'fn-ic', html: svg(I.film) }),
+        el('div', {}, [el('b', { text: 'Filming with this choice' }), el('span', { text: (sum0 ? sum0.t + '. ' : '') + 'It can be changed when the render ends.' })]),
+        el('button', { type: 'button', class: 'btn btn-accent', text: 'Open Film it', onclick: function () { open(fm.id); } })]));
+      return;
+    }
     if (need.length) {
       need.forEach(function (x) {
         body.appendChild(el('div', { class: 'fp-need' }, [el('span', { class: 'fn-ic', html: svg(T[x.type].icon) }),
@@ -862,7 +909,7 @@
       body.appendChild(el('p', { class: 'f-note', text: 'You can also drag a line from any node that has it into this one.' }));
       return;
     }
-    ({ subject: renderSubject, creator: renderCreator, format: renderFormat, script: renderScript, voice: renderVoice, film: renderFilm, media: renderMedia, final: renderFinal })[n.type](body, n);
+    ({ creator: renderCreator, format: renderFormat, script: renderScript, voice: renderVoice, film: renderFilm, media: renderMedia, final: renderFinal })[n.type](body, n);
     if (n.type === 'media' || n.type === 'final') return;
     if (isDone(n) && !G.guided && n.type !== 'film' && !outs(n.id).length) body.appendChild(el('div', { class: 'f-foot' }, [
       el('button', { type: 'button', class: 'btn', html: 'Choose what comes next' + svg(I.arrow), onclick: function () { showMenu(n, { x: n.x + NW + GAP, y: n.y + NH / 2 }); } })]));
@@ -926,7 +973,7 @@
       box.appendChild(el('div', { class: 'f-prog' }, [el('b', { id: 'f-pic-note', text: pic.note }), el('span', { id: 'f-pic-time', text: '' })]));
       box.appendChild(el('div', { class: 'f-bar' }, [el('i')]));
       box.appendChild(el('div', { class: 'f-foot' }, [el('p', { class: 'f-note', text: 'We film the shortest clip our video model makes and keep a frame from it.' }), el('span', { class: 'grow' }),
-        el('button', { type: 'button', class: 'btn', text: 'Stop', onclick: function () { api('/api/stop', { method: 'POST' }).catch(function () {}); } })]));
+        el('button', { type: 'button', class: 'btn', text: 'Stop', onclick: function () { api('/api/stop', { method: 'POST', body: { what: 'board' } }).catch(function () {}); } })]));
       return null;
     }
     return el('button', { type: 'button', class: 'btn', disabled: online ? null : '', title: online ? 'Films a short test shot on our GPU and keeps a frame' : 'Our GPU is offline right now',
@@ -956,56 +1003,37 @@
       else if (ev.type === 'error') shopErr = ev.message;
     }).catch(function () { shopErr = 'The Shop search did not answer.'; }).then(function () { shopBusy = false; refresh(n); });
   }
-  function renderSubject(box, n) {
-    var d = n.d, pick = function (s) { d.subject = s; changed(n); complete(n); };
-    box.appendChild(el('div', { class: 'f-tabs', role: 'tablist' }, [['shop', 'TikTok Shop', I.bag], ['own', 'My own', I.up], ['idea', 'An idea', I.spark]].map(function (t) {
-      return el('button', { type: 'button', role: 'tab', 'aria-selected': String(d.tab === t[0]), html: svg(t[2]), onclick: function () { d.tab = t[0]; picErr = ''; keep(); renderPanel(); } }, [t[1]]);
-    })));
-    if (d.tab === 'shop') {
-      var shop = P().shop || {}, vids = shop.videos || [];
-      var q = el('input', { class: 'f-in', type: 'search', placeholder: 'Search products: skincare, kitchen, pets', value: shop.query || '', 'aria-label': 'Search TikTok Shop' });
-      box.appendChild(el('form', { class: 'f-row', onsubmit: function (e) { e.preventDefault(); search(n, q.value.trim(), d.sort); } }, [q, el('button', { type: 'submit', class: 'btn', text: 'Search' })]));
-      box.appendChild(seg([['trending', 'Trending'], ['top', 'Most viewed']], d.sort, function (v) { d.sort = v; keep(); search(n, q.value.trim(), v); }));
-      var grid = el('div', { class: 'f-grid' });
-      if ((shopBusy && !vids.length) || (!vids.length && !shopTried)) { for (var k = 0; k < 9; k++) grid.appendChild(el('div', { class: 'f-skel' })); if (!shopBusy) search(n, '', d.sort); }
-      else if (shopErr && !vids.length) { box.appendChild(el('p', { class: 'f-note warn', text: shopErr })); box.appendChild(el('button', { type: 'button', class: 'btn', text: 'Try again', onclick: function () { search(n, q.value.trim(), d.sort); } })); return; }
-      else {
-        if (shopErr) box.appendChild(el('p', { class: 'f-note warn', text: shopErr + ' Showing your last results.' }));
-        if (!vids.length) box.appendChild(el('p', { class: 'f-note', text: 'Nothing came back for that. Try a broader word.' }));
-        vids.forEach(function (v, k) {
-          var c = card(v.poster, v.product || v.title || 'Video', (v.price ? money(v.price) : '') + (v.units_7d ? ' · ' + short(v.units_7d) + ' sold / 7d' : ''), short(v.views) + ' views',
-            d.subject && d.subject.kind === 'shop' && String(d.subject.id) === String(v.id), function () {
-              pick({ kind: 'shop', id: String(v.id), title: v.product || v.title || 'Video', poster: v.poster, price: v.price, units: v.units_7d, creator: v.creator });
-            });
-          c.style.setProperty('--k', Math.min(k, 12)); grid.appendChild(c);
-        });
-      }
-      box.appendChild(grid);
-      if (vids.length && shop.more !== false) box.appendChild(el('button', { type: 'button', class: 'btn', disabled: shopBusy ? '' : null, text: shopBusy ? 'Loading' : 'Load 100 more',
-        onclick: function () { search(n, shop.query || '', shop.sort || d.sort, vids.length + 100); } }));
-    } else if (d.tab === 'own') {
-      box.appendChild(dropzone('Drop a picture or a clip of it here', 'or click to choose a file', 'image/*,video/*', function (id) { var a = P().assets[id]; pick({ kind: 'asset', asset: id, title: a.name, poster: thumb(a) }); }));
-      var mine = Object.keys(P().assets).map(function (k) { return P().assets[k]; }).filter(function (a) { return a.kind !== 'audio' && !a.reference && a.id !== P().avatar; }).reverse();
-      if (mine.length) {
-        box.appendChild(el('p', { class: 'f-note', text: 'Or use something already in your library.' }));
-        var g2 = el('div', { class: 'f-grid' });
-        mine.forEach(function (a, k) {
-          var c = card(thumb(a), a.name, a.kind === 'image' ? 'picture' : S.fmt(a.duration), a.source === 'generated' ? 'AI' : '', d.subject && d.subject.asset === a.id, function () { pick({ kind: 'asset', asset: a.id, title: a.name, poster: thumb(a) }); }, true);
-          c.style.setProperty('--k', Math.min(k, 12)); g2.appendChild(c);
-        });
-        box.appendChild(g2);
-      }
-    } else {
-      var area = el('textarea', { class: 'f-area', rows: '3', placeholder: 'A matte black travel mug that keeps coffee hot all day', 'aria-label': 'Describe what the video is about' });
-      area.value = d.idea || '';
-      area.addEventListener('input', function () { d.idea = area.value; keep(); });
-      box.appendChild(el('span', { class: 'f-lab' }, ['Describe it'])); box.appendChild(area);
-      if (picErr) box.appendChild(el('p', { class: 'f-note warn', text: picErr }));
-      var make = picturePanel(box, n, 'subject', function () { return area.value; }, function (id) { var a = P().assets[id]; pick({ kind: 'asset', asset: id, title: a.name, poster: thumb(a), text: area.value.trim() }); });
-      if (make) box.appendChild(el('div', { class: 'f-foot' }, [
-        el('button', { type: 'button', class: 'btn btn-accent', text: 'Use this idea', onclick: function () { var t = area.value.trim(); if (t.length > 3) pick({ kind: 'idea', text: t, title: t }); else area.focus(); } }), make,
-        el('p', { class: 'f-note', text: 'An idea alone is free. A picture is a frame from a short test shot.' })]));
-    }
+  function pickSubject(n) {                                   // step one is chosen in the left rail: a selling video in Shop, a file of your own in Media, or by chatting
+    if (filming(n)) { S.pick(null); return void stop(null, 'This video is being filmed right now. Step 1 can be changed when the render ends.'); }
+    var d = n.d, take = function (subj) { delete d.via; d.subject = subj; changed(n); S.pick(null); complete(n); };
+    S.pick({ step: 'Step 1', title: T.subject.ask,
+      onShop: function (v) { take({ kind: 'shop', id: String(v.id), title: v.product || v.title || 'Video', poster: v.poster, price: v.price, units: v.units_7d, creator: v.creator, url: v.url, image: v.image, rating: v.rating }); },
+      onAsset: function (a) {
+        if (a.id === P().avatar) return void stop(n, 'That is your avatar. It comes in at step 2, who is on camera. Pick what the video is about first.');
+        if (a.kind === 'audio') return void stop(n, 'A sound comes in at step 5, the voice. Pick a picture or a clip of what the video is about.');
+        take({ kind: a.reference ? 'reference' : 'asset', asset: a.id, title: (a.meta && a.meta.product) || a.name, poster: thumb(a), price: a.meta && a.meta.price });
+      },
+      onChat: function () { subjectChat(n); } });
+  }
+  function subjectChat(n) {                                   // step one is answered by typing it
+    var d = n.d;
+    chatStep(n, { label: 'step 1: what the video is about', hint: 'Describe the video: a dinosaur walking through a city at night',
+          say: 'Type what the video is about in the box at the bottom. That becomes step 1, and the next step opens.',
+          take: function (text) {
+            d.subject = { kind: 'idea', text: text, title: text }; changed(n); S.pick(null); complete(n);
+            return 'Got it. The video is about: ' + text + '. Next step: who is on camera.';
+          } });
+  }
+  function describe() {                                       // "Describe a video" in the chat: step one, answered by typing
+    var n = G.nodes.filter(function (m) { return m.type === 'subject' && !m.d.subject; })[0];
+    if (!n || filming()) return false;
+    open(n.id); subjectChat(n); return true;
+  }
+  function chatStep(n, o) {                                   // this step is answered in Ember's message field: the text fills the step, nothing is rendered
+    n.d.via = 'chat'; keep(); draw(); say(o.say);
+    S.chatPoint(true, { label: o.label, hint: o.hint,
+      take: function (text) { delete n.d.via; return o.take(text); },
+      cancel: function () { delete n.d.via; keep(); draw(); } });
   }
 
   /* ---------- node: who is on camera ---------- */
@@ -1024,6 +1052,14 @@
     opt(I.up, av ? 'Upload a different photo' : 'Upload a photo', 'Your own face, or a creator you have the rights to.', function () { file.click(); }).appendChild(file);
     opt(I.spark, 'Make one with our models', 'Describe a presenter and we film them for you.', function () { d.cmode = d.cmode === 'make' ? '' : 'make'; picErr = ''; keep(); renderPanel(); }, d.cmode === 'make');
     opt(I.none, 'No one on camera', 'Product shots only, no presenter.', function () { pick({ kind: 'none' }); }, d.creator && d.creator.kind === 'none');
+    opt(I.script, 'Chat about it', 'Describe who you want on camera in the box at the bottom.', function () {
+      chatStep(n, { label: 'step 2: who is on camera', hint: 'Describe them: a woman in her twenties, warm smile, cream sweater',
+        say: 'Describe who is on camera in the box at the bottom. Then choose: make their picture with our models, or just use the description.',
+        take: function (text) {
+          d.cmode = 'make'; d.cdesc = text; keep(); open(n.id);
+          return 'Got it. On the right: make their picture with our models (the price is on the button), or just use the description for free.';
+        } });
+    }, d.via === 'chat');
     box.appendChild(opts);
     if (d.cmode === 'make') {
       var area = el('textarea', { class: 'f-area', rows: '3', placeholder: 'A woman in her late twenties, warm smile, dark hair in a low bun, cream knit sweater', 'aria-label': 'Describe the presenter' });
@@ -1265,7 +1301,7 @@
       bill.appendChild(el('div', { class: 'f-prog' }, [el('b', { id: 'f-film-note', text: d.film.note }), el('span', { id: 'f-film-time', text: Math.round((Date.now() - d.film.t0) / 1000) + 's' })]));
       bill.appendChild(el('div', { class: 'f-bar' }, [el('i')]));
       bill.appendChild(el('div', { class: 'f-foot' }, [el('p', { class: 'f-note', text: 'A render takes a few minutes. Stopping cancels it.' }), el('span', { class: 'grow' }),
-        el('button', { type: 'button', class: 'btn', text: 'Stop', onclick: function () { api('/api/stop', { method: 'POST' }).catch(function () {}); } })]));
+        el('button', { type: 'button', class: 'btn', text: 'Stop', onclick: function () { api('/api/stop', { method: 'POST', body: { what: 'board' } }).catch(function () {}); } })]));
     } else if (st === 'done') {
       var fm = d.film, bad = fm.said && fm.said.match < 0.8 && !fm.voiced;
       if (fm.voiced) bill.appendChild(el('p', { class: 'f-note ok', text: 'The line is spoken word for word by ' + (fm.voiced.kind === 'fish' ? fm.voiced.title : 'your own voice') + ', laid over the clip.' }));
@@ -1328,6 +1364,8 @@
   var resetBtn = $('#flow-reset'), resetT = 0;
   function unsure() { clearTimeout(resetT); resetBtn.classList.remove('sure'); resetBtn.textContent = 'Start over'; }
   resetBtn.addEventListener('click', function () {            // Start over wipes the board: every step, every node, and the clips in the video. Files stay in Media.
+    if (filming()) return void stop(filming(), 'A clip is being filmed right now. Stop the render in "Film it" first, or wait for it, then start over.');
+    if (S.acting && S.acting()) return void stop(null, 'Ember is working. Wait for it to finish, then start over.');
     var p = P(), used = {}; p.tracks.video.concat(p.tracks.audio).forEach(function (c) { used[c.asset] = 1; });
     var clips = Object.keys(used);
     if (clips.length && !resetBtn.classList.contains('sure')) {
@@ -1346,13 +1384,13 @@
   $('#flow .flow-top .orb').innerHTML = S.mascot();
   S.onChange(function () {                                    // the project changed (you, or Ember): the canvas follows
     if (root.hidden || !P()) return;
-    sync(); draw(); keep();
+    validate(); sync(); draw(); keep();
     if (claimed) { var c0 = claimed; claimed = null; if (G.guided && G.open === c0.id) return void complete(c0); }
     settle();
     var on = G.open && node(G.open);
     if (!on || on.type === 'media' || on.type === 'final') renderPanel();
   });
-  window.EmberFlow = { open: open0, close: close, place: place, dropped: dropped, lay: lay, fit: fit, dropHint: dropHint, guiding: function () { return !!current(); }, showFinal: function () { var fn = finalNode(); if (fn) open(fn.id); },
+  window.EmberFlow = { open: open0, close: close, place: place, dropped: dropped, lay: lay, fit: fit, shopClick: shopClick, describe: describe, dropHint: dropHint, guiding: function () { return !!current(); }, showFinal: function () { var fn = finalNode(); if (fn) open(fn.id); },
     working: function () { var on = !root.hidden && G.open && node(G.open); return !!on && on.type !== 'media' && on.type !== 'final' && !isDone(on); },   // a step is open and not finished
     refresh: function () { if (!root.hidden) { sync(); draw(); renderPanel(); } }, seen: function () { try { return !!localStorage.getItem(SEEN); } catch (e) { return true; } } };
 })();

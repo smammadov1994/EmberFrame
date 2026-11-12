@@ -107,6 +107,9 @@
 .gn.nudge { animation: gn-nudge 0.45s ease-in-out 2; border-color: var(--accent); }
 .gn.next { border-color: rgba(242, 90, 43, 0.85); cursor: pointer; animation: gn-next 2.4s ease-in-out infinite; }   /* nothing is open: this step is waiting for a click */
 .gn.next .fn-t small { color: var(--accent-text); }
+.gn { flex-wrap: nowrap; } .gn .fn-t { min-width: 0; }   /* a node's lines stay inside its box: a long label is cut short, never pushed out beside it */
+.gn .fn-t small, .gn .fn-t b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gn.chatty { border-color: rgba(242, 90, 43, 0.85); } .gn.chatty .fn-t small { color: var(--accent-text); }   /* this step is being answered in the chat */
 @keyframes gn-next { 0%, 100% { box-shadow: 0 0 0 0 rgba(242, 90, 43, 0), 0 22px 50px -30px #000; } 50% { box-shadow: 0 0 0 7px rgba(242, 90, 43, 0.16), 0 26px 60px -28px rgba(242, 90, 43, 0.55); } }
 @media (prefers-reduced-motion: reduce) { .gn.next, .gn.nudge { animation: none; } }
 @keyframes gn-nudge { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-7px); } 75% { transform: translateX(7px); } }
