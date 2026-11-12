@@ -109,7 +109,10 @@ Where it is used:
   views gained in a day or least crowded; in stock only; a commission floor; a ceiling on how many
   videos sell it; a price ceiling; a category word. A ranking of products shows each product once.
   Ask in words: "skincare with at least 15% commission that is growing and not crowded".
-- Numbers are still shown to the person only when they ask for numbers.
+- Pulling the rail wider on the Shop tab shows more about each video: under the poster, the product's
+  7-day units and revenue, sales trend, commission, rating, how many videos sell it, views gained in
+  a day and stock; wider still, the creator and category. The rail can be pulled to most of the page.
+- Otherwise numbers are shown to the person only when they ask for numbers.
 
 Kaiyros has more that the studio does not read yet: products, sellers and creators lists with
 filters (commission floor, category, price range), a market view, a video's views history, and a

@@ -235,7 +235,8 @@
         el('span', { class: 'vtop' }, [el('span', { class: 'vchips' }, [el('span', { class: 'chip', text: n(v.views) + ' views' }),
           v.stock === 'out_of_stock' ? el('span', { class: 'chip out', text: 'Out of stock' }) : null])]),
         el('span', { class: 'pick', text: picking ? 'Use this' : 'Work from this' }),
-        el('span', { class: 'ov' }, [el('b', { text: v.product || v.title }), el('span', { text: (v.price ? '$' + v.price : '@' + (v.creator || 'creator')) + (v.units_7d ? ' · ' + n(v.units_7d) + ' sold' : '') })])
+        el('span', { class: 'ov' }, [el('b', { text: v.product || v.title }), el('span', { text: (v.price ? '$' + v.price : '@' + (v.creator || 'creator')) + (v.units_7d ? ' · ' + n(v.units_7d) + ' sold' : '') })]),
+        shopFacts(v, n)
       ]);
       card.style.setProperty('--k', Math.min(k, 12));
       card.draggable = true;                                  // drag it onto the canvas to work from it
@@ -243,6 +244,21 @@
       shop.appendChild(card);
     });
     if (vids.length && P.shop.more !== false) shop.appendChild(el('button', { type: 'button', class: 'sv-all more', text: shopBusy ? 'Loading' : 'Load 100 more', onclick: function () { shopSearch(P.shop.query || '', P.shop.sort || 'trending', vids.length + 100); } }));
+  }
+  function shopFacts(v, n) {                                  // the product's numbers, shown under the poster when the rail is pulled wide
+    var f = [], add = function (label, value, cls) { if (value !== null && value !== undefined && value !== '') f.push(el('span', { class: cls || null }, [el('i', { text: label }), el('b', { text: String(value) })])); };
+    var t = v.sales_trend_pct;
+    add('Sold, 7 days', v.units_7d ? n(v.units_7d) : null);
+    add('Revenue, 7 days', v.revenue_7d ? '$' + n(v.revenue_7d) : null);
+    add('Sales trend', t === null || t === undefined ? null : (t > 0 ? '+' : '') + t + '%', t > 0 ? 'up' : t < 0 ? 'down' : null);
+    add('Commission', v.commission_pct ? v.commission_pct + '%' : null);
+    add('Rating', v.rating ? v.rating + (v.reviews ? ' (' + n(v.reviews) + ')' : '') : null);
+    add('Selling it', v.videos_selling ? n(v.videos_selling) + ' videos' : null);
+    add('Views, last day', v.views_24h ? '+' + n(v.views_24h) : null);
+    add('Stock', v.stock === 'out_of_stock' ? 'Out of stock' : v.stock === 'in_stock' ? 'In stock' : null, v.stock === 'out_of_stock' ? 'down' : null);
+    add('Creator', v.creator ? '@' + v.creator : null, 'wide');
+    add('Category', v.category || null, 'wide');
+    return el('span', { class: 'vmore' }, f);
   }
   /* ---------- Shop: search and paging, without filling the chat ---------- */
   var shopBusy = false, shopNote = '';
@@ -1459,7 +1475,7 @@
     applySizes.t = setTimeout(function () { body.classList.remove('sizing'); }, 150);
     var put = function (node, name, v) { if (phone || !v) node.style.removeProperty(name); else node.style.setProperty(name, Math.round(v) + 'px'); };
     put(body, '--chatw', sizes.chat && clamp(sizes.chat, 300, Math.max(300, Math.min(680, innerWidth - 640))));
-    var railW = sizes.rail && clamp(sizes.rail, 170, Math.max(170, Math.min(560, edBox.clientWidth - 330)));
+    var railW = sizes.rail && clamp(sizes.rail, 170, Math.max(170, Math.min(1100, edBox.clientWidth - 420)));   // wide enough to read Shop data; the board keeps at least 420
     if (picking || stepping) railW = Math.max(railW || 0, Math.min(440, Math.max(170, edBox.clientWidth - 330)));   // choosing happens in the rail: give it room
     put(edBox, '--rail', railW);
     put(edBox, '--tlh', sizes.tl && clamp(sizes.tl, 236, Math.max(236, Math.min(600, edBox.clientHeight - 230))));

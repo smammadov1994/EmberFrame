@@ -810,3 +810,25 @@ body.canvas.ez-empty.picking .ed > .flow, body.canvas.ez-empty.stepping .ed > .f
 .dock-for button { flex: none; width: 24px; height: 24px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, 0.08); color: var(--txt-2); font-size: 11px; cursor: pointer; }
 .dock-for button:hover { background: rgba(255, 255, 255, 0.16); color: var(--txt); }
 @media (max-width: 760px) { body.picking .lib { min-height: 58dvh; } body.picking .lib-list { max-height: 44dvh; } }   /* choosing in the rail needs room on a phone */
+
+/* ---------- a wider rail shows more about each Shop video ---------- */
+.lib-rail { container: rail / inline-size; }
+.vcard .vmore { display: none; }
+@container rail (min-width: 440px) {
+  .lib-list.shop { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+  .lib-list.shop .vcard { display: flex; flex-direction: column; background: #141312; }
+  .lib-list.shop .vcard img { flex: none; }
+  .lib-list.shop .vcard .ov { position: static; padding: 10px 11px 2px; background: none; }
+  .lib-list.shop .vcard .ov b { font-size: 13px; }
+  .lib-list.shop .vcard .vmore { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; padding: 8px 11px 12px; }
+  .lib-list.shop .vcard .vmore span { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .lib-list.shop .vcard .vmore i { font: 9.5px var(--mono); font-style: normal; letter-spacing: 0.05em; text-transform: uppercase; color: var(--txt-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lib-list.shop .vcard .vmore b { display: block; font: 500 13px var(--sans); color: var(--txt); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lib-list.shop .vcard .vmore .up b { color: var(--ok); } .lib-list.shop .vcard .vmore .down b { color: #FF9A84; }
+  .lib-list.shop .vcard .vmore .wide { display: none; }
+  .lib-list.shop .vcard .pick { top: 32%; }
+}
+@container rail (min-width: 700px) {
+  .lib-list.shop { grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); }
+  .lib-list.shop .vcard .vmore .wide { display: flex; grid-column: 1 / -1; }
+}
