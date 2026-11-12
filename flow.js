@@ -129,11 +129,30 @@
   function inCut(asset) { var p = P(); return p.tracks.video.concat(p.tracks.audio).some(function (c) { return c.asset === asset; }); }
   function fill(n) {                                          // what a media node is, to the nodes it feeds: the subject, the person, or the voice
     var a = P().assets[n.d.asset]; if (!a) return;
-    var role = a.kind === 'audio' ? 'voice' : a.kind === 'video' ? 'subject' : n.d.as || (a.id === P().avatar ? 'creator' : a.source === 'product' || P().avatar ? 'subject' : 'creator');
+    var person = function () {                                // a picture that comes after the subject, or leads into "Who is on camera", is the person
+      return outs(n.id).some(function (m) { return m.type === 'creator'; }) || ins(n.id).some(function (m) { return !!ctx(m.id).subject; });
+    };
+    var role = a.kind === 'audio' ? 'voice' : a.kind === 'video' ? 'subject' : n.d.as || (a.id === P().avatar ? 'creator' : a.source === 'product' ? 'subject' : person() ? 'creator' : P().avatar ? 'subject' : 'creator');
     n.d.role = role; delete n.d.subject; delete n.d.creator; delete n.d.voice;
     if (role === 'subject') n.d.subject = { kind: a.reference ? 'reference' : 'asset', asset: a.id, title: (a.meta && a.meta.product) || a.name, poster: thumb(a), price: a.meta && a.meta.price };
     else if (role === 'creator') n.d.creator = { kind: 'avatar', asset: a.id, title: a.name, poster: a.url };
     else n.d.voice = { kind: 'own', asset: a.id, title: a.name };
+  }
+  var claimed = null;                                         // an open "Who is on camera" step that a wired-in picture has just answered
+  function claim() {                                          // a picture of a person wired into "Who is on camera" is the answer to it
+    var p = P(), got = null;
+    G.nodes.forEach(function (n) {
+      if (n.type !== 'creator') return;
+      var c = n.d.creator;
+      if (c && c.from && !ins(n.id).some(function (x) { return x.id === c.from && x.d.role === 'creator'; })) { n.d.creator = c = null; changed(n); }   // unwired, or it is the product after all
+      if (c) return;
+      var m = ins(n.id).filter(function (x) { var a = x.type === 'media' && p.assets[x.d.asset]; return a && a.kind === 'image' && x.d.role === 'creator'; })[0];
+      if (!m) return;
+      var a = p.assets[m.d.asset];
+      n.d.creator = { kind: 'avatar', asset: a.id, title: a.name, poster: a.url, from: m.id }; changed(n);
+      if (G.open === n.id) got = n;
+    });
+    return got;
   }
   function addMedia(asset, x, y) { var at = freeSpot(x, y), n = { id: rid(), type: 'media', x: at.x, y: at.y, d: { asset: asset } }; G.nodes.push(n); fill(n); return n; }
   function sync() {                                           // the canvas follows the project: files that exist, and the cut wired into Final
@@ -176,6 +195,7 @@
       return b.id !== fin.id || (a.type === 'media' && cut[a.d.asset]);
     });
     G.nodes.forEach(function (n) { if (n.type === 'media') fill(n); });
+    claimed = claim() || claimed;
     if (G.open && !node(G.open)) G.open = null;
   }
   function choose(title, at, items) {                         // a small menu on the board
@@ -305,7 +325,11 @@
     if (b.id === a.id || below(b.id).some(function (m) { return m.id === a.id; })) return void say('That would make a loop. A wire has to lead forward.');
     if (link(a, b)) return;
     G.wires.push({ from: a.id, to: b.id }); clear(b, true); changed(b);
-    keep(); draw(); renderPanel();
+    G.nodes.forEach(function (n) { if (n.type === 'media') fill(n); });
+    var got = claim(); keep(); draw();
+    if (b.type === 'creator' && isDone(b) && b.d.creator.from === a.id) return void (G.guided ? complete(b) : open(b.id));   // the picture is who is on camera: carry on
+    if (got && G.guided) return void complete(got);
+    renderPanel();
   }
   function removeNode(n) {
     if (G.nodes.length < 2 || n.type === 'final') return;
@@ -599,6 +623,17 @@
   $('#flow-out').addEventListener('click', function () { var r = view.getBoundingClientRect(); zoomAt(r.left + room().w / 2, r.top + r.height / 2, V.k / 1.2); });
   $('#flow-fit').addEventListener('click', fit);
   $('#flow-guided').addEventListener('click', function () { G.guided = !G.guided; keep(); draw(); renderPanel(); });
+  document.addEventListener('keydown', function (e) {        // Backspace or Delete takes the selected node off the board
+    if ((e.key !== 'Backspace' && e.key !== 'Delete') || root.hidden || !G.open || e.metaKey || e.ctrlKey || e.altKey) return;
+    var t = e.target, tag = t && t.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable) || (t && t.closest && t.closest('.flow-panel, .chat-head, .chat-log, .chat-foot, #lib, .dlg, .menu-pop'))) return;
+    var n = node(G.open); if (!n) return;
+    e.preventDefault();
+    if (n.type === 'final') return void say('The final video stays. Unwire a clip from it to take that clip out.');
+    if (G.nodes.filter(function (m) { return m.type !== 'final'; }).length < 2) return void say('This is the only step on the board. Use Start over to begin again.');
+    var file = n.type === 'media'; removeNode(n);
+    say(file ? 'Taken off the board. The file is still in your media.' : 'Step removed.');
+  });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !root.hidden) { if (!menuEl.hidden) hideMenu(); else if (G.open) { G.open = null; keep(); draw(); renderPanel(); } } });
 
   /* ---------- the panel: the open node says what it wants ---------- */
@@ -642,7 +677,7 @@
       : a.kind === 'image' ? 'A picture. Film it by wiring it into "What to make".' : cut ? 'This is in your video.' : 'This is on the canvas but not in your video yet.') }));
     if (a.kind === 'image' && a.source !== 'product') {
       box.appendChild(el('span', { class: 'f-lab' }, ['This picture is']));
-      box.appendChild(seg([['creator', 'The person on camera'], ['subject', 'The product']], n.d.role, function (v) { n.d.as = v; fill(n); changed(n); keep(); refresh(n); }));
+      box.appendChild(seg([['creator', 'The person on camera'], ['subject', 'The product']], n.d.role, function (v) { n.d.as = v; fill(n); claim(); changed(n); keep(); draw(); refresh(n); }));
     }
     var foot = el('div', { class: 'f-foot' });
     if (a.kind !== 'image' && !a.reference) foot.appendChild(el('button', { type: 'button', class: 'btn' + (cut ? '' : ' btn-accent'), text: cut ? 'Take it out of the video' : 'Add to the final video', onclick: function () { if (cut) S.cut.remove(a.id); else S.cut.add(a.id); } }));
@@ -1077,6 +1112,7 @@
     try { localStorage.setItem(SEEN, '1'); } catch (e) {}
     validate(); sync(); root.hidden = false;
     draw(); renderPanel();
+    if (claimed) { var c0 = claimed; claimed = null; if (G.guided && G.open === c0.id) complete(c0); }
     if (!G.view) { V = { x: 0, y: 0, k: 1 }; if (G.open && node(G.open)) focusOn(node(G.open)); else fit(); world.classList.remove('glide'); } else apply(false);
   }
   function close() {
@@ -1091,6 +1127,7 @@
   S.onChange(function () {                                    // the project changed (you, or Ember): the canvas follows
     if (root.hidden || !P()) return;
     sync(); draw(); keep();
+    if (claimed) { var c0 = claimed; claimed = null; if (G.guided && G.open === c0.id) return void complete(c0); }
     var on = G.open && node(G.open);
     if (!on || on.type === 'media' || on.type === 'final') renderPanel();
   });
