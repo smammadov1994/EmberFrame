@@ -135,6 +135,23 @@
       else if (ev.type === 'error') products.note = ev.message;
     }).catch(function () { products.note = 'The catalogue did not answer.'; }).then(function () { products.busy = false; drawLibrary(); });
   }
+  function namedIn(text, rows) {                              // the products an answer is about: most of the name is in it, or its exact units figure
+    var t = ' ' + String(text || '').toLowerCase().replace(/(\d),(?=\d)/g, '$1').replace(/[^a-z0-9]+/g, ' ') + ' ';
+    return rows.filter(function (r) {
+      var words = String(r.product || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(' ').filter(function (w) { return w.length > 2; }).slice(0, 8);
+      var hit = words.filter(function (w) { return t.indexOf(' ' + w + ' ') >= 0; }).length;
+      return (words.length > 1 && hit >= Math.min(4, words.length) && hit / words.length >= 0.6) || (r.units_7d >= 1000 && t.indexOf(' ' + r.units_7d + ' ') >= 0);
+    });
+  }
+  function pinNamed(text) {                                   // Ember answered about products it looked up: those go to the top of the Shop tab, marked
+    var named = namedIn(text, products.rows);
+    products.rows.forEach(function (r) { r.named = named.indexOf(r) >= 0; });
+    lastNamed = named[0] || null;
+    if (!named.length) return;
+    products.rows = named.concat(products.rows.filter(function (r) { return !r.named; }));
+    shopKind = 'products'; showTab('shop'); drawLibrary();
+    var list = $('#lib-shop'); if (list) list.scrollTop = 0;
+  }
   function productClick(r) {                                  // a product: the videos that sell it, or (while step one is waiting) the product itself as the subject
     if (products.busy || shopBusy) return;
     products.busy = true; products.note = 'Finding the videos that sell it'; drawLibrary();
@@ -161,9 +178,9 @@
     else if (st.note) shop.appendChild(el('p', { class: 'lib-empty', text: st.note }));
     else if (!st.rows.length) shop.appendChild(el('p', { class: 'lib-empty', text: 'No products matched. Try another word.' }));
     st.rows.forEach(function (r, k) {
-      var card = el('button', { type: 'button', class: 'vcard pcard', title: r.product, onclick: function () { productClick(r); } }, [
+      var card = el('button', { type: 'button', class: 'vcard pcard' + (r.named ? ' named' : ''), title: r.product, onclick: function () { productClick(r); } }, [
         el('img', { src: r.image || '', alt: '', loading: 'lazy' }),
-        el('span', { class: 'vtop' }, [el('span', { class: 'vchips' }, [r.commission_pct ? el('span', { class: 'chip', text: r.commission_pct + '% commission' }) : null,
+        el('span', { class: 'vtop' }, [el('span', { class: 'vchips' }, [r.named ? el('span', { class: 'chip hot', text: 'In Ember\'s answer' }) : null, r.commission_pct ? el('span', { class: 'chip', text: r.commission_pct + '% commission' }) : null,
           r.stock === 'out_of_stock' ? el('span', { class: 'chip out', text: 'Out of stock' }) : null])]),
         el('span', { class: 'pick', text: picking ? 'Use this' : 'See its videos' }),
         el('span', { class: 'ov' }, [el('b', { text: r.product }), el('span', { text: (r.price ? '$' + r.price : '') + (r.units_7d ? ' · ' + num(r.units_7d) + ' sold' : '') })]),
@@ -705,7 +722,7 @@
 
   /* ---------- Ember ---------- */
   var log = $('#chat-log'), input = $('#chat-input');
-  var msgEl = null, actEl = null, stepMap = {}, rcpt = null, turnStart = null, turnStartState = null;
+  var msgEl = null, actEl = null, stepMap = {}, rcpt = null, turnStart = null, turnStartState = null, turnProducts = false, lastNamed = null;
   var TOOL_ICON = {
     edit_timeline: '<circle cx="6" cy="6" r="2.2"/><circle cx="6" cy="14" r="2.2"/><path d="M8 7.2L16 14M8 12.8L16 6"/>',
     remove_silences: '<path d="M3 10h2M7 6v8M10.5 8.5v3M14 4.5v11M17 10h0"/>',
@@ -727,15 +744,6 @@
     swap_person: '<circle cx="7" cy="7" r="2.5"/><circle cx="13.5" cy="8" r="2"/><path d="M3 16c.5-3 2-4.5 4-4.5s3.5 1.5 4 4.5M12 12c2.5-.3 4 1.200 4.500 3.500"/>'
   };
   function scrollLog() { log.scrollTop = log.scrollHeight; }
-  var ACT_AT = { edit_timeline: '.gn.final', remove_silences: '.gn.final', auto_captions: '.gn.final', make_clip: '.gn.final', speak: '.gn.final', record_voice: '.gn.final', raea: '.gn.final',
-    shop_search: '#lib', shop_import: '#lib', set_avatar: '#lib', show_canvas: '#lib', set_view: '#lib', raea_files: '#lib',
-    transcribe: '.gn.final', look_at: '.gn.final', generate_clip: '#flow-view', render: '.gn.final', swap_person: '#flow-view', prepare_post: '.gn.final', raea_docs: '#flow-view' };
-  var acting = {};                                            // step id -> the panel it is lighting
-  function actOn(id, name) { var n = ACT_AT[name] && $(ACT_AT[name]); if (!n) return; acting[id] = n; n.classList.add('acting'); }
-  function actOff(id) {
-    var n = acting[id]; delete acting[id];
-    if (n) setTimeout(function () { if (!Object.keys(acting).some(function (k) { return acting[k] === n; })) n.classList.remove('acting'); }, 2200);   // one lap of the light, so even an instant edit is seen
-  }
   function clipState() { var m = {}; ['video', 'audio', 'captions'].forEach(function (k) { P.tracks[k].forEach(function (c) { m[c.id] = [c.asset, c.in, c.out, c.volume, c.text, c.end === undefined ? '' : (c.end - c.start).toFixed(2), k === 'video' ? '' : c.start].join('|'); }); }); return m; }
   function glowChanged(before) {                              // the clips Ember just touched glow once
     var now = clipState();
@@ -760,13 +768,17 @@
     log.appendChild(n); scrollLog(); return n;
   }
   function note(text) { return bubble('note', text); }
+  var fieldWait = el('span', { class: 'field-wait', 'aria-hidden': 'true' }, [el('i'), el('i'), el('i'), el('em', { text: 'Ember is working' })]);   // three embers in the message field while Ember works
+  $('#chat-form').appendChild(fieldWait);
+  $('.chat').appendChild(el('i', { class: 'chat-ring', 'aria-hidden': 'true' }));   // the circling light: round the chat while Ember works
   function setBusy(on) {
     busy = on;
     mood(on ? 'busy' : null);
     $('.chat').classList.toggle('working', on);
     $('#ember-state').textContent = on ? 'Thinking' : STATUS.brain !== 'offline' ? 'Ready' : 'Basic mode: model not connected';
     $('#chat-send').hidden = on; $('#chat-stop').hidden = !on;
-    input.placeholder = on ? 'Ember is working' : 'Tell Ember what to do';
+    input.placeholder = on ? ' ' : 'Tell Ember what to do';   // while it works, the field shows the three dots instead (they give way as soon as you type)
+    fieldWait.style.left = input.offsetLeft + 4 + 'px'; $('#chat-form').classList.toggle('thinking', on);
     ['#t-clean', '#t-caps', '#post-export'].forEach(function (s) { $(s).disabled = on; });
   }
   function describe() { return { d: P.duration, v: P.tracks.video.length, a: P.tracks.audio.length, c: P.tracks.captions.length }; }
@@ -788,7 +800,6 @@
     log.appendChild(rcpt);                                    // keep it under the latest step
   }
   function onEvent(ev) {
-    if (waitEl && ev.type !== 'progress') waiting(false);
     if (ev.type === 'text') {
       if (!msgEl) { msgEl = bubble('ember live', ''); actEl = null; }
       msgEl._raw += ev.delta; msgEl.innerHTML = md(msgEl._raw); scrollLog();
@@ -798,10 +809,9 @@
         if (msgEl) { msgEl.classList.remove('live'); msgEl = null; }
         if (!actEl) { actEl = el('div', { class: 'act' }); log.appendChild(actEl); }
         var row = el('div', { class: 'stp run' }, [el('span', { class: 'ic', html: svg(TOOL_ICON[ev.name] || '<circle cx="10" cy="10" r="3"/>') }), el('span', { class: 'lb', text: ev.label })]);
-        row._t = Date.now(); stepMap[ev.id] = row; actEl.appendChild(row); actOn(ev.id, ev.name);
+        row._t = Date.now(); stepMap[ev.id] = row; actEl.appendChild(row);
         $('#ember-state').textContent = ev.label; mood('busy');
       } else if (stepMap[ev.id]) {
-        actOff(ev.id);
         var r = stepMap[ev.id];
         r.className = 'stp ' + ev.state;
         r.appendChild(el('small', { text: ev.detail ? ev.detail : ((Date.now() - r._t) / 1000).toFixed(1) + 's' }));
@@ -818,7 +828,10 @@
       glowChanged(clipsWere);
       if (JSON.stringify(describe()) !== JSON.stringify(turnStart)) receipt();
       if (JSON.stringify(describe()) !== was && isBrowse()) closeBrowse();   // an edit is landing: show the editor
-      if (P.shop && JSON.stringify(P.shop.videos.map(function (v) { return v.id; })) !== hadShop) showTab('shop');
+      if (P.shop && JSON.stringify(P.shop.videos.map(function (v) { return v.id; })) !== hadShop) { shopKind = 'videos'; showTab('shop'); drawLibrary(); }   // Ember fetched videos: the Shop tab shows them
+    } else if (ev.type === 'products') {                      // Ember looked through the catalogue: the Shop tab shows what it found, not the list that was there
+      products.rows = ev.rows || []; products.query = ev.query || ''; products.sort = ev.sort || 'units'; products.note = ''; products.tried = true; turnProducts = true;
+      shopKind = 'products'; showTab('shop'); drawLibrary();
       scrollLog();
     } else if (ev.type === 'canvas') {
       openBrowse(ev.canvas);
@@ -887,8 +900,8 @@
     showNext(opts.slice(0, 3).map(function (x) { return { label: x.length > 34 ? x.slice(0, 33) + '…' : x, say: x }; }));
   }
   function endTurn() {
-    waiting(false);
     liftSuggestions();
+    if (turnProducts) { turnProducts = false; if (msgEl) pinNamed(msgEl._raw); }
     if (msgEl) msgEl.classList.remove('live');
     $$('.act', log).forEach(function (a) {                    // long runs fold into one line
       if (a._done) return; a._done = true;
@@ -901,7 +914,6 @@
     setBusy(false);
     $$('.ask', log).forEach(function (c) { if (c._open) expire(c); });
     if (pendingPlan && window.EmberFlow && window.EmberFlow.lay) { var plan = pendingPlan; pendingPlan = null; window.EmberFlow.lay(plan); }
-    Object.keys(acting).forEach(actOff);
     if (nextEl) log.appendChild(nextEl);                      // next steps stay under everything else
     mood('happy'); clearTimeout(happyTimer); happyTimer = setTimeout(function () { if (!busy) mood(null); }, 1300);
     var chat = turnPath === '/api/chat' && STATUS.brain !== 'offline';
@@ -912,7 +924,7 @@
     scrollLog();
   }
   /* ---------- the chat: a field at the bottom of the page; the session opens on the left when you talk ---------- */
-  var dockOrb = $('#dock-orb'), waitEl = null;
+  var dockOrb = $('#dock-orb');
   $('.orb', dockOrb).innerHTML = mascot();
   function chatIsOpen() { return !document.body.classList.contains('chat-off'); }
   function chatOpen(on) {
@@ -937,13 +949,9 @@
   setTimeout(placeDock, 0);
   dockOrb.addEventListener('click', function () { chatOpen(!chatIsOpen()); });
   $('#chat-hide').addEventListener('click', function () { chatOpen(false); });
-  function waiting(on) {                                      // three embers while Ember has not answered yet
-    if (waitEl) { waitEl.remove(); waitEl = null; }
-    if (on) { waitEl = el('div', { class: 'm ember wait', 'aria-label': 'Ember is thinking' }, [el('i'), el('i'), el('i')]); log.appendChild(waitEl); scrollLog(); }
-  }
   function stream(path, body) {                               // POST and read a server-sent event stream
-    chatOpen(true); waiting(true);
-    msgEl = null; actEl = null; stepMap = {}; rcpt = null; nextEl = null; turnPath = path;
+    chatOpen(true);
+    msgEl = null; actEl = null; stepMap = {}; rcpt = null; nextEl = null; turnPath = path; lastNamed = null;
     $$('.next', log).forEach(function (n) { n.classList.add('used'); });
     turnStart = describe(); turnStartState = snapshot();
     setBusy(true);
@@ -979,7 +987,7 @@
       var reply = t.take(text); if (reply) bubble('ember', reply);
       return;
     }
-    chatPoint(false); chatOpen(true); bubble('you', text); waiting(true);       // the session opens the moment you talk
+    chatPoint(false); chatOpen(true); bubble('you', text);       // the session opens the moment you talk
     input.value = ''; input.style.height = '';
     var viewNow = isBrowse() ? 'browse' : 'editor';
     if (isBrowse() && text.length < 90 && /\b(back|return|go|take me|bring me)\b.{0,30}\beditor\b|\b(see|show|open)\b.{0,16}\beditor\b|\bclose (this|that|it|the (view|canvas|videos|grid))\b/i.test(text)) closeBrowse();
@@ -1121,7 +1129,12 @@
   }
   function fallbackNext() {                                   // when Ember offers none: the obvious next moves from here
     var out = [], sv = shopVideos();
-    if (isBrowse() && sv.length) {
+    if (lastNamed) {                                         // the answer was about a product from the catalogue: the next moves are about that product
+      var pr = lastNamed, nm = String(pr.product || 'this product').slice(0, 80);
+      out.push({ label: 'See its selling videos', fn: function () { shopKind = 'products'; showTab('shop'); productClick(pr); } });
+      out.push({ label: 'Make a video for it', say: 'Make a video for "' + nm + '" (product id ' + pr.product_id + '). Find the videos that already sell it, pick the best one to model it on, and lay the video out.' });
+      out.push({ label: 'Who sells the most of these?', say: 'Which brands sell the most of this kind of product ("' + nm + '") right now?' });
+    } else if (isBrowse() && sv.length) {
       var top = sv.slice().sort(function (x, y) { return (y.views || 0) - (x.views || 0); })[0];
       out.push({ label: 'Remake the top one', fn: function () { pick('I pick this one: "' + (top.product || top.title || 'video').slice(0, 80) + '" by @' + (top.creator || 'creator') + ' (video id ' + top.id + ').'); } });
       out.push({ label: 'What do the winners share?', say: 'Look at the top videos in this search and tell me what they have in common: the hook, the length, the offer.' });

@@ -5,6 +5,14 @@ are in [STUDIO.md](STUDIO.md).
 
 ## 12 November 2026
 
+**Ember's answers and the Shop tab**
+- When Ember looks up products, the Shop tab switches to what it found. The products its answer
+  names go to the top, marked "In Ember's answer". The buttons under that answer are about the
+  product: see its selling videos, make a video for it, who sells the most of these.
+- When Ember fetches videos, the Shop tab switches back to Videos.
+- While Ember works, three dots show in the message field (they give way when you type) and one
+  light circles the chat panel. Panels are no longer lit one by one.
+
 **Where things are**
 - Every step now opens in the left rail. The board is never covered by a panel.
 - Step 1 is chosen in the rail itself: Shop (with search and Trending / Most viewed) or Media, or
