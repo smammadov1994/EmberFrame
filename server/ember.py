@@ -1732,11 +1732,11 @@ TOOLS: list[dict[str, Any]] = [
    "Nothing is filmed: the script is written on the canvas from the product facts, the person can click any step to change it, and they press Film themselves. "
    "subject_asset is a library file (the selling video you imported, or their own picture or clip); use idea instead when the video is only described in words. "
    "creator: 'avatar' (their saved avatar), 'describe' (with creator_text), 'none', or 'ask' (set only the subject and leave who is on camera, and every later step, for the person to choose on the canvas; use it when they described a video without saying who is in it). make: 'clip' (the presenter points up at the product callout), 'pitch' (holds it up to the lens), "
-   "'showcase' (product only, nobody speaks) or 'free'. seconds: 6, 8, 10, 12 or 15. voice: 'presenter' (the video model speaks, lips match), 'library' (voice_id and voice_name from list_voices) "
+   "'showcase' (product only, nobody speaks), 'commercial' (three cinematic shots cut together, nobody speaks; use it when they ask for a commercial, an advert or something cinematic) or 'free'. seconds: 6, 8, 10, 12 or 15. voice: 'presenter' (the video model speaks, lips match), 'library' (voice_id and voice_name from list_voices) "
    "or 'own' (voice_asset, a recording of theirs).",
   "input_schema": {"type": "object", "properties": {"subject_asset": {"type": "string"}, "idea": {"type": "string"},
     "creator": {"type": "string", "enum": ["avatar", "describe", "none", "ask"]}, "creator_text": {"type": "string"},
-    "make": {"type": "string", "enum": ["clip", "pitch", "showcase", "free"]}, "seconds": {"type": "number"},
+    "make": {"type": "string", "enum": ["clip", "pitch", "showcase", "commercial", "free"]}, "seconds": {"type": "number"},
     "voice": {"type": "string", "enum": ["presenter", "library", "own"]}, "voice_id": {"type": "string"}, "voice_name": {"type": "string"},
     "voice_asset": {"type": "string"}}}},
  {"name": "suggest", "fn": t_suggest, "label": "Offering next steps",
@@ -1813,10 +1813,10 @@ How to work
 - Every turn ends with a suggest call. After you have written your reply, call suggest in the same response with two or three next steps: usually the fix you just offered, the natural next step toward posting, and one bolder idea. Make them specific to this cut and this moment (name the clip, the product, the number), never generic. The person taps one and the conversation keeps moving; a reply with no buttons leaves them to think of the next step alone. Skip it only when you asked the person a question.
 - Never leave the person at "I can't". When a rule or a limit stops the exact thing they asked for, say so in one short sentence, then get them what they were after another way, and start on it in the same turn.
 - Clipping is the main thing people come here to do. A clip is a selling video made again as theirs: their avatar on camera presenting the same product, filmed new, in new words. Whenever a selling video is in play (they picked one, imported a reference, or say "use this clip", "use the same clip", "make my version", "put me in it", "add my voice to it", "clip it"), that is what they mean. Do not answer with what cannot be done to the other creator's file. If they have not asked yet, offer it by name in one line: "Want me to clip this with your avatar?" If they have asked, or say yes, make it:
-  0. Whose choice is the product? If they asked for a video without naming a product or a selling video, and no selling video is in the library yet, do not pick silently. Ask one short question ("Do you want to choose the product, or should I pick one for you?") and call suggest with exactly two buttons: "Pick for me" (say: "Pick a product for me and set the video up.") and "Let me choose" (say: "Show me what is selling so I can choose."). Then stop and wait. On "Let me choose": search and open the videos for them to pick. On "Pick for me": search, choose the one that fits them best, and import it with shop_import. Choose like a seller would: in stock, selling now (revenue_7d or units_7d high, sales_trend_pct not falling), not already crowded (fewer videos_selling and creators_selling for its sales is better), and for an affiliate a higher commission_pct. Never pick one the data shows as out of stock.
+  0. Whose choice is the product? If they asked for a video without naming a product or a selling video, and no selling video is in the library yet, do not pick silently. Ask one short question ("Do you want to choose the product, or should I pick one for you?") and call suggest with these buttons: "Pick for me" (say: "Pick a product for me and set the video up."), "Let me choose" (say: "Show me what is selling so I can choose.") and, unless they said it is a TikTok Shop product, a third: "No product, my idea" (say: "No Shop product. Make it from my description."). Then stop and wait. On "No product, my idea": call plan_video with their words as the idea, and no Shop search. On "Let me choose": search and open the videos for them to pick. On "Pick for me": search, choose the one that fits them best, and import it with shop_import. Choose like a seller would: in stock, selling now (revenue_7d or units_7d high, sales_trend_pct not falling), not already crowded (fewer videos_selling and creators_selling for its sales is better), and for an affiliate a higher commission_pct. Never pick one the data shows as out of stock.
   1. Know the video and the product. Read the reference's transcript and look at a few frames if you have not. The product, its price and its 7-day sales are in the Shop result and on the reference in the studio state.
   2. Lay it out with plan_video. Do not write the script yourself and do not call generate_clip for this. plan_video puts every step on the canvas, filled in with your choices: the subject, who is on camera, the kind of video and its length, the script, the voice, and Film with its price. The script is written there from the product facts (the reference's beats, every word new, facts only, no claim that the presenter used it). Pass subject_asset (the selling video), creator 'avatar' when one is saved, make 'clip' unless they asked for another kind, and seconds 8 unless they said a length.
-  3. Then tell them, in two or three short sentences: which product you chose and the one reason why (a number from the listing belongs here), which picture is on camera (name the avatar file), the kind of video and its length, and that every step is on the canvas to click and change before anything is filmed. Nothing renders and nothing is charged until they press Film there. A video they only describe in words, with no product ("a video about a dinosaur"), is laid out the same way and never rendered from the chat: plan_video with idea and creator 'ask', so they still choose who is on camera, the style, the script and the voice on the canvas; skip the product question for it. generate_clip is only for when they tell you in so many words to render right now without the steps, or for one extra shot inside a video that already has its steps; then brief it like a director, with reference_images set to the AVATAR and the product's photo.
+  3. Then tell them, in two or three short sentences: which product you chose and the one reason why (a number from the listing belongs here), which picture is on camera (name the avatar file), the kind of video and its length, and that every step is on the canvas to click and change before anything is filmed. Nothing renders and nothing is charged until they press Film there. A video they only describe in words, with no product ("a video about a dinosaur"), is laid out the same way and never rendered from the chat: plan_video with idea and creator 'ask', so they still choose who is on camera, the style, the script and the voice on the canvas; skip the product question for it. When they ask for a commercial, an advert, or for it to look cinematic, lay it out with make 'commercial' and creator 'none' (several cinematic shots cut together, nobody speaks), unless they asked to be in it; say that it is several shots and that each is filmed on its own. generate_clip is only for when they tell you in so many words to render right now without the steps, or for one extra shot inside a video that already has its steps; then brief it like a director, with reference_images set to the AVATAR and the product's photo.
   4. Filming is theirs to start: they press Film on the canvas. After a clip is filmed, finish it only if they ask: captions from the speech, and a caption at the top naming the product (that is what they are pointing at). Above the presenter you may also put a product close-up that you film; never the other creator's footage.
 - If the studio state says no avatar is saved, do not stop to ask for a photo and do not hold the video back for one: lay it out with plan_video and creator 'ask'. Step 2 on the canvas is where they add a photo, describe a presenter or choose no one; say that in one line. If they drop a photo of their creator into the chat, call set_avatar and carry on. If they would rather not, lay the video out with creator 'ask' so they choose who is on camera on the canvas (a described presenter, or no one), and say that it will not be them.
 - The video model sometimes garbles the words a presenter says. If the person says a clip's speech is wrong or gibberish, fix it without filming again: list_voices, then speak the exact line with a library voice placed at that clip's start, and set that clip's volume to 0 with edit_timeline. Say in one sentence that it is now a voiceover, so the lips will not match.
@@ -2088,7 +2088,20 @@ FLOW_MAKES = {
     "pitch": "Format: talking to camera. The presenter holds the product up to the lens and says the line.",
     "showcase": 'Format: product showcase. Nobody is on screen and nobody speaks, so the line is "". A cinematic close-up of the product with one clear action that shows what it does.',
     "free": "Format: the person's own idea, given below. Someone speaks only if their idea calls for it.",
+    "commercial": "Format: a commercial made of several shots cut together. Nobody speaks.",
 }
+SHOT_SECONDS = 5.2                                           # the shortest clip the video model makes: one shot of a commercial
+FLOW_WRITER_SHOTS = """You write a short commercial as a sequence of shots for a vertical video. Reply with JSON only, no other text:
+{"name": a short title of at most five words, "shots": [one director's brief per shot, in the order they play]}
+
+Rules
+- Each brief is one continuous shot of about five seconds, three sentences at most: what is on screen, the action, the setting, the light, the lens and the camera move, and the sound.
+- Together the shots tell one small story. The first sets up the need or teases the product. The middle ones show the product doing its job, close up. The last is the hero frame of the product, still and clean.
+- Each shot is filmed on its own and knows nothing of the others, so every brief names the product, the setting and the light again, in the same words, so they match when cut together.
+- Vary the shot size and the camera move from one shot to the next: a wide or a tease, then macro detail, then the hero frame.
+- Nobody speaks. No on-screen text.
+- State only what the facts support. Never invent numbers, discounts, ingredients or claims.
+- Do not describe a presenter's face or body; a picture supplies that. Do not mention pictures, references or file names."""
 
 def ask_json(system: str, user: str) -> dict[str, Any] | None:
     """One short model call that answers in JSON. None when no model is connected or the answer is unusable."""
@@ -2203,6 +2216,19 @@ def flow_script(turn: Turn, args: dict[str, Any]) -> None:
                     (["The line is a voiceover recorded separately. Nobody speaks on camera: write the shot with the presenter silent, mouth closed, "
                       "reacting and gesturing, and still write the line (also for a product showcase)."] if voiceover else []) + facts +
                     ([f"Transcript of the selling video (for the order of its beats only):\n{transcript}"] if transcript else []))
+    if make == "commercial":                                 # several shots, written as one story and filmed one after another
+        k = max(2, min(int(args.get("shots") or 3), 4))
+        js = ask_json(FLOW_WRITER_SHOTS, "\n".join([FLOW_MAKES["commercial"], who, FLOW_LOOKS["cinematic"],
+                                                     f"Number of shots: {k}. Each runs about five seconds."] + facts +
+                                                    ([f"Transcript of a selling video (for the order of its beats only):\n{transcript}"] if transcript else []))) or {}
+        shots = [str(x).strip()[:900] for x in (js.get("shots") or []) if str(x).strip()][:k]
+        what = product or str((args.get("idea") or subj.get("text") or "the subject")).strip()[:80]
+        while len(shots) < k:                                # the writer came back short: a plain shot keeps the count, to be rewritten
+            shots.append(f"A cinematic close-up of {what} on a clean surface, soft rim light and shallow depth of field, a slow push in. Quiet room tone.")
+        done(len(js.get("shots") or []) >= k, None if len(js.get("shots") or []) >= k else "Some shots are plain drafts you can rewrite.")
+        turn.emit({**out, "look": "cinematic", "line": "", "shot": shots[0], "shots": shots, "name": str(js.get("name") or product or "Commercial")[:50],
+                   "seconds": SHOT_SECONDS, "words": 0, "facts": [str(x)[:140] for x in facts][:10]})
+        return
     js = ask_json(FLOW_WRITER, ask) or {}
     line, shot = str(js.get("line") or "").strip()[:600], str(js.get("shot") or "").strip()[:1200]
     if not shot:                                             # no model, or no usable answer: a plain, true default
@@ -2646,13 +2672,15 @@ async def chat(req: Request, x_ember_user: str | None = Header(None)):
             turn.preapproved = 0.0
         s.add_log({"role": "user", "text": text, "at": time.time()})
         said = {"claude": run_claude, "openai": run_openai}.get(brain(), run_offline)(turn, text)
-        asked = next((q for q in re.findall(r"[^.!?\n]*\?", str(said or "")) if re.search(r"\bproduct", q, re.I)
-                      and re.search(r"\b(choose|pick|select|which|find)\b", q, re.I)), None)   # the question may be followed by another sentence
+        asked = next((q for q in re.findall(r"[^.!?\n]*\?", str(said or ""))
+                      if (re.search(r"\bproduct", q, re.I) and re.search(r"\b(choose|pick|select|which|find)\b", q, re.I))
+                      or re.search(r"\b(choose|select)\b.*\bor\b.*\bpick\b|\bpick\b.*\bor\b.*\b(choose|select)\b", q, re.I)), None)   # the question may be followed by another sentence
         if (not getattr(turn, "suggested", False) and asked
                 and not any(a.get("reference") for a in s.load()["assets"].values())):
-            turn.emit({"type": "suggest", "options": [                # the question was asked without its two buttons
+            turn.emit({"type": "suggest", "options": [                # the question was asked without its buttons
                 {"label": "Pick for me", "say": "Pick a product for me and set the video up."},
-                {"label": "Let me choose", "say": "Show me what is selling so I can choose."}]})
+                {"label": "Let me choose", "say": "Show me what is selling so I can choose."}]
+                + ([] if re.search(r"\bshop\b", text, re.I) else [{"label": "No product, my idea", "say": "No Shop product. Make it from my description."}])})
         s.add_log({"role": "ember", "text": said, "at": time.time(), "steps": turn.labels[-12:]})
         with s.lock:
             s.snapshot(s.load(), "Ember: " + text, force=True)

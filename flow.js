@@ -46,8 +46,12 @@
     { id: 'clip', icon: I.point, t: 'Clip it', d: 'Your creator points up at the product and tells people why to buy it.', person: true },
     { id: 'pitch', icon: I.person, t: 'Talk to camera', d: 'Your creator holds it up and pitches it straight to the lens.', person: true },
     { id: 'showcase', icon: I.bag, t: 'Product showcase', d: 'A cinematic close-up of the product. No one on camera.' },
+    { id: 'commercial', icon: I.film, t: 'Commercial', d: 'Several cinematic shots cut together, like an advert. No one speaks.' },
     { id: 'free', icon: I.spark, t: 'My own idea', d: 'Describe any shot and we film it.' }
   ];
+  var SHOT = 5.2;                                             // one shot of a commercial: the shortest clip the video model makes
+  function shotsOf(f) { return f && f.make === 'commercial' ? (f.shots || 3) : 0; }
+  function priceOf(f) { var k = shotsOf(f); return k ? Math.round(cost(SHOT) * k * 100) / 100 : cost(f.seconds); }
 
   /* ---------- the step panel lives in the left rail: the board keeps the whole right side ---------- */
   var docked = false;
@@ -220,6 +224,11 @@
       fin = { id: rid(), type: 'final', x: right, y: 0, d: {} }; G.nodes.push(fin);
     }
     G.nodes.forEach(function (n) {                            // a filmed clip sits right after the node that filmed it
+      if (n.type === 'film' && n.d.film && n.d.film.assets) n.d.film.assets.forEach(function (id) {   // a commercial: every shot that was filmed
+        if (!p.assets[id]) return;
+        var mm = mediaNode(id) || addMedia(id, n.x + NW + GAP, n.y); if (!wired(n.id, mm.id)) G.wires.push({ from: n.id, to: mm.id });
+        if (fin.x < mm.x + NW + GAP) fin.x = mm.x + NW + GAP;
+      });
       var a = n.type === 'film' && n.d.film && n.d.film.state === 'done' && n.d.film.asset;
       if (a && p.assets[a] && !mediaNode(a) && Math.abs(fin.x - (n.x + NW + GAP)) < NW + 30 && Math.abs(fin.y - n.y) < NH + 24) fin.x = n.x + 2 * (NW + GAP);   // the final video makes room for the new clip
       if (a && p.assets[a]) { var m = mediaNode(a) || addMedia(a, n.x + NW + GAP, n.y); if (!wired(n.id, m.id)) G.wires.push({ from: n.id, to: m.id }); }
@@ -230,7 +239,10 @@
       var a = p.assets[id];
       var rf = a.source === 'generated' && !mediaNode(id) && G.nodes.filter(function (m) { return m.type === 'film' && m.d.film && m.d.film.state === 'run' && m.d.film.resumed; })[0];
       if (rf) {                                              // the clip a reloaded page was waiting for
-        rf.d.film = { state: 'done', asset: id };
+        var shotsIn = (rf.d.film.assets || []).filter(function (x) { return p.assets[x]; }).concat([id]), ofAll = rf.d.film.total || 1;
+        rf.d.film = ofAll > 1 && shotsIn.length < ofAll
+          ? { state: 'fail', assets: shotsIn, reason: shotsIn.length + ' of ' + ofAll + (shotsIn.length === 1 ? ' shots is' : ' shots are') + ' filmed and in your video. The page was reloaded, so the rest were not started.' }
+          : { state: 'done', asset: id, assets: ofAll > 1 ? shotsIn : null };
         var got = addMedia(id, rf.x + NW + GAP, rf.y); G.wires.push({ from: rf.id, to: got.id });
         if (fin.x < got.x + NW + GAP) fin.x = got.x + NW + GAP;
         return;
@@ -420,7 +432,8 @@
     };
     var c = plan.creator || { kind: 'none' }, av = c.kind === 'avatar' && p.assets[c.asset];
     step('creator', function (d) { d.creator = av ? { kind: 'avatar', asset: av.id, title: av.name, poster: av.url } : c.kind === 'describe' ? { kind: 'describe', text: c.text } : { kind: 'none' }; });
-    step('format', function (d) { d.make = plan.make || 'clip'; d.seconds = plan.seconds || 8; d.ok = true; if (d.make === 'free') d.idea = s.text || subj.title; });
+    step('format', function (d) { d.make = plan.make || 'clip'; d.seconds = plan.seconds || 8; d.ok = true; if (d.make === 'free') d.idea = s.text || subj.title;
+      if (d.make === 'commercial') { d.shots = d.shots || 3; d.look = 'cinematic'; } });
     var words = step('script', function (d) { d.script = null; d.ok = false; });
     delete scriptErr[words.id];
     if (plan.voice) step('voice', function (d) { d.voice = plan.voice; d.mode = plan.voice.kind; });
@@ -631,6 +644,7 @@
     if (n.type === 'subject' && d.subject) { t = d.subject.title || 'An idea'; img = d.subject.poster || ''; s = d.subject.kind === 'shop' ? (d.subject.price ? money(d.subject.price) + ' · ' : '') + 'TikTok Shop' : d.subject.kind === 'asset' ? 'Your own' : 'An idea'; }
     if (n.type === 'creator' && d.creator) { t = d.creator.kind === 'none' ? 'No one on camera' : d.creator.kind === 'describe' ? d.creator.text : (d.creator.title || 'My avatar'); img = d.creator.poster || ''; s = d.creator.kind === 'avatar' ? 'Your creator' : d.creator.kind === 'describe' ? 'Described' : 'Product only'; }
     if (n.type === 'format' && d.make === 'asis') { t = 'Use it as it is'; s = 'No filming'; }
+    else if (n.type === 'format' && d.make === 'commercial') { t = 'Commercial, ' + shotsOf(d) + ' shots'; s = 'about ' + Math.round(shotsOf(d) * SHOT) + ' seconds · ' + money(priceOf(d)); }
     else if (n.type === 'format' && d.make) { t = MAKES.filter(function (x) { return x.id === d.make; })[0].t + (d.look === 'cinematic' ? ', cinematic' : ''); s = d.seconds + ' seconds · ' + money(cost(d.seconds)); }
     if (n.type === 'script' && d.script) { t = d.script.line ? '"' + d.script.line + '"' : d.script.shot; s = d.script.line ? d.script.line.split(/\s+/).length + ' words' : 'No speech'; }
     if (n.type === 'voice' && d.voice) { t = d.voice.kind === 'model' ? 'The presenter speaks' : d.voice.kind === 'fish' ? d.voice.title : 'My own voice'; s = d.voice.kind === 'model' ? 'Lips match' : 'Voiceover'; }
@@ -1151,6 +1165,14 @@
       area.addEventListener('input', function () { d.idea = area.value; keep(); });
       box.appendChild(el('span', { class: 'f-lab' }, ['Describe the shot'])); box.appendChild(area);
     }
+    if (d.make === 'commercial') {
+      box.appendChild(el('span', { class: 'f-lab' }, ['Shots', el('em', { html: '<b>' + money(priceOf(d)) + '</b> to film' })]));
+      box.appendChild(seg([[2, '2 shots'], [3, '3 shots'], [4, '4 shots']], shotsOf(d), function (v) { d.shots = v; d.ok = false; changed(n); keep(); refresh(n); }));
+      box.appendChild(el('p', { class: 'f-note', text: 'Each shot is about 5 seconds and is filmed on its own, one after another, at the highest quality. They are cut together in Final video. About ' + Math.round(shotsOf(d) * SHOT) + ' seconds in all; allow a few minutes a shot.' }));
+      box.appendChild(el('div', { class: 'f-foot' }, [el('span', { class: 'grow' }),
+        el('button', { type: 'button', class: 'btn btn-accent', html: (isDone(n) ? 'Keep this' : 'This one') + svg(I.arrow), onclick: function () { d.look = 'cinematic'; d.ok = true; complete(n); } })]));
+      return;
+    }
     var look = d.look || (nobody ? 'cinematic' : 'phone');
     box.appendChild(el('span', { class: 'f-lab' }, ['Look']));
     box.appendChild(seg([['phone', 'Phone footage'], ['cinematic', 'Cinematic commercial']], look, function (v) { d.look = v; d.ok = false; changed(n); keep(); refresh(n); }));
@@ -1173,12 +1195,12 @@
     var c = ctx(n.id), cr = (c.creator && c.creator.d.creator) || { kind: 'none' }, f = c.format.d, vo = c.voice && c.voice.d.voice;
     writing = n.id; steps = []; delete scriptErr[n.id]; n.d.script = null; n.d.ok = false; refresh(n);
     sse('flow_script', { subject: c.subject.d.subject, creator: cr, make: f.make, seconds: f.seconds, idea: f.make === 'free' ? f.idea : '', voice: vo || null,
-      look: f.look || (cr.kind === 'none' ? 'cinematic' : 'phone') }, function (ev) {
+      look: f.look || (cr.kind === 'none' ? 'cinematic' : 'phone'), shots: shotsOf(f) || undefined }, function (ev) {
       if (ev.type === 'step') {
         if (ev.state === 'run') steps.push({ id: ev.id, label: ev.label, state: 'run' });
         else steps.forEach(function (s) { if (s.id === ev.id) { s.state = ev.state; s.detail = ev.detail; } });
         if (G.open === n.id) renderPanel();
-      } else if (ev.type === 'flow_script') n.d.script = { line: ev.line, shot: ev.shot, name: ev.name, words: ev.words, product_asset: ev.product_asset, reference_asset: ev.reference_asset, facts: ev.facts || [] };
+      } else if (ev.type === 'flow_script') n.d.script = { line: ev.line, shot: ev.shot, name: ev.name, words: ev.words, product_asset: ev.product_asset, reference_asset: ev.reference_asset, facts: ev.facts || [], shots: ev.shots || null };
       else if (ev.type === 'error') scriptErr[n.id] = ev.message;
     }).catch(function () { scriptErr[n.id] = 'The connection dropped.'; }).then(function () {
       writing = null; if (!n.d.script && !scriptErr[n.id]) scriptErr[n.id] = 'The script was not written. Try again.';
@@ -1197,6 +1219,26 @@
     if (!d.script) {
       box.appendChild(el('p', { class: 'f-note warn', text: scriptErr[n.id] || 'Another script is being written. One moment.' }));
       box.appendChild(el('div', { class: 'f-foot' }, [el('button', { type: 'button', class: 'btn btn-accent', text: 'Try again', onclick: function () { delete scriptErr[n.id]; writeScript(n); } })]));
+      return;
+    }
+    if (d.script.shots) {
+      var areas = d.script.shots.map(function (text, i) {
+        var ta = el('textarea', { class: 'f-area', rows: '4', 'aria-label': 'Shot ' + (i + 1) }); ta.value = text;
+        ta.addEventListener('input', function () { d.script.shots[i] = ta.value; changed(n); keep(); });
+        box.appendChild(el('span', { class: 'f-lab' }, ['Shot ' + (i + 1) + ' of ' + d.script.shots.length])); box.appendChild(ta);
+        return ta;
+      });
+      if (d.script.facts && d.script.facts.length) {
+        box.appendChild(el('span', { class: 'f-lab' }, ['Facts it was written from']));
+        box.appendChild(el('ul', { class: 'f-facts' }, d.script.facts.map(function (x) { return el('li', { text: x }); })));
+      }
+      box.appendChild(el('p', { class: 'f-note', text: 'Each shot is filmed on its own, so each one names the product, the place and the light again. Nobody speaks.' }));
+      box.appendChild(el('div', { class: 'f-foot' }, [
+        el('button', { type: 'button', class: 'btn', text: 'Write it again', onclick: function () { writeScript(n); } }), el('span', { class: 'grow' }),
+        el('button', { type: 'button', class: 'btn btn-accent', html: 'Looks good' + svg(I.arrow), onclick: function () {
+          var thin = areas.filter(function (ta) { return ta.value.trim().length < 8; })[0]; if (thin) return void thin.focus();
+          d.ok = true; complete(n);
+        } })]));
       return;
     }
     var limit = d.script.words || 19, count = el('em');
@@ -1312,27 +1354,47 @@
   function starterCut() { var v = P().tracks.video; return !v.length || v.every(function (c) { var a = P().assets[c.asset]; return a && (a.name === 'Presenter take' || a.name === 'Savanna walk'); }); }
   function film(n) {
     var c = ctx(n.id), f = c.format.d, sc = c.script.d.script, sub = c.subject.d.subject, cr = (c.creator && c.creator.d.creator) || { kind: 'none' }, vo = (c.voice && c.voice.d.voice) || { kind: 'model' };
-    var price = cost(f.seconds), asset = null, why = '', said = null;
-    n.d.film = { state: 'run', note: 'Sending it to our GPU', t0: Date.now() }; refresh(n);
+    var shots = sc.shots && sc.shots.length ? sc.shots.slice() : null, total = shots ? shots.length : 1;
+    var got = shots ? shotsKept(n, total) : [], why = '', said = null, look = shots ? 'cinematic' : (f.look || (cr.kind === 'none' ? 'cinematic' : 'phone'));
+    n.d.film = { state: 'run', note: 'Sending it to our GPU', t0: Date.now(), assets: shots ? got.slice() : null, total: total }; refresh(n);
     clearInterval(filmTick);
     filmTick = setInterval(function () { var t = $('#f-film-time'); if (t && n.d.film && n.d.film.state === 'run') t.textContent = Math.round((Date.now() - n.d.film.t0) / 1000) + 's'; }, 1000);
-    sse('flow_film', { line: sc.line, shot: sc.shot, seconds: f.seconds, name: sc.name, voice: vo, look: f.look || (cr.kind === 'none' ? 'cinematic' : 'phone'),
-      creator_asset: cr.kind === 'avatar' ? cr.asset : null, creator_text: cr.kind === 'describe' ? cr.text : '',
-      product_asset: sc.product_asset || (sub.kind === 'asset' && has(sub.asset) && P().assets[sub.asset].kind === 'image' ? sub.asset : null),
-      fresh: false, approved: price }, function (ev) {
-      if (ev.type === 'progress' && n.d.film) { n.d.film.note = ev.note; var nn = $('#f-film-note'); if (nn) nn.textContent = ev.note; }
-      else if (ev.type === 'flow_film') { asset = ev.rendered ? ev.asset : null; why = ev.rendered ? '' : (ev.reason || 'The render did not finish.'); said = ev.heard !== undefined ? { heard: ev.heard, match: ev.match } : null; }
-      else if (ev.type === 'error') why = ev.message;
-    }).catch(function () { why = 'The connection dropped.'; }).then(function () {
+    var note = function (text, i) { if (!n.d.film) return; n.d.film.note = (shots ? 'Shot ' + (i + 1) + ' of ' + total + ': ' : '') + text; var nn = $('#f-film-note'); if (nn) nn.textContent = n.d.film.note; };
+    var one = function (i) {                                  // one render: the whole clip, or one shot of a commercial
+      var asset = null;
+      note('Sending it to our GPU', i);
+      return sse('flow_film', { line: shots ? '' : sc.line, shot: shots ? shots[i] : sc.shot, seconds: shots ? SHOT : f.seconds,
+        name: shots ? (sc.name || 'Commercial') + ' ' + (i + 1) : sc.name, voice: shots ? { kind: 'model' } : vo, look: look,
+        creator_asset: cr.kind === 'avatar' ? cr.asset : null, creator_text: cr.kind === 'describe' ? cr.text : '',
+        product_asset: sc.product_asset || (sub.kind === 'asset' && has(sub.asset) && P().assets[sub.asset].kind === 'image' ? sub.asset : null),
+        fresh: false, approved: shots ? cost(SHOT) : cost(f.seconds) }, function (ev) {
+        if (ev.type === 'progress') note(ev.note, i);
+        else if (ev.type === 'flow_film') { asset = ev.rendered ? ev.asset : null; why = ev.rendered ? '' : (ev.reason || 'The render did not finish.'); if (!shots) said = ev.heard !== undefined ? { heard: ev.heard, match: ev.match } : null; }
+        else if (ev.type === 'error') why = ev.message;
+      }).catch(function () { why = 'The connection dropped.'; }).then(function () {
+        if (!asset) return;                                   // this one did not film: stop here, keep what was filmed
+        got.push(asset);
+        if (shots && n.d.film) { n.d.film.assets = got.slice(); sync(); keep(); draw(); }   // each shot is wired in as it lands, and a reload knows how far it got
+        if (i + 1 < total) return one(i + 1);
+      });
+    };
+    one(got.length).then(function () {
       clearInterval(filmTick);
-      n.d.film = asset ? { state: 'done', asset: asset, said: said, voiced: vo.kind !== 'model' ? vo : null } : { state: 'fail', reason: why || 'The render did not finish.' };
-      if (asset && said && said.match < 0.8 && vo.kind === 'model' && sc.line) n.d.fix = 'pick';   // the words came out wrong: the voices to fix it with are already showing
+      var all = got.length === total;
+      n.d.film = all ? { state: 'done', asset: got[got.length - 1], assets: shots ? got : null, said: said, voiced: !shots && vo.kind !== 'model' ? vo : null }
+        : { state: 'fail', assets: got.length ? got : null, reason: (got.length ? got.length + ' of ' + total + (got.length === 1 ? ' shots is' : ' shots are') + ' filmed and in your video. Then: ' : '') + (why || 'The render did not finish.') };
+      if (all && said && said.match < 0.8 && vo.kind === 'model' && sc.line) n.d.fix = 'pick';   // the words came out wrong: the voices to fix it with are already showing
       sync(); keep(); refresh(n);
     });
   }
+  function shotsKept(n, total) {                             // shots filmed in a try that stopped part way: they are not filmed, or paid for, again
+    var fl = n.d.film, kept = fl && fl.state === 'fail' && fl.assets ? fl.assets.filter(has) : [];
+    return kept.length < total ? kept : [];
+  }
   function renderFilm(box, n) {
     var d = n.d, st = d.film && d.film.state, p = P(), c = ctx(n.id), f = c.format.d, sc = c.script.d.script, sub = c.subject.d.subject, cr = (c.creator && c.creator.d.creator) || { kind: 'none' }, vo = (c.voice && c.voice.d.voice) || { kind: 'model' };
-    var online = S.status().gpu && S.status().gpu.online, price = cost(f.seconds), screen = el('div', { class: 'f-screen' });
+    var kept = sc.shots ? shotsKept(n, sc.shots.length).length : 0, left = sc.shots ? sc.shots.length - kept : 0;
+    var online = S.status().gpu && S.status().gpu.online, price = sc.shots ? Math.round(cost(SHOT) * left * 100) / 100 : priceOf(f), screen = el('div', { class: 'f-screen' });
     if (st === 'done' && has(d.film.asset)) {
       screen.appendChild(el('video', { src: p.assets[d.film.asset].url, autoplay: '', loop: '', playsinline: '', controls: '' })); screen.firstChild.muted = true;
       screen.appendChild(el('span', { class: 'tag-ai', text: 'AI-generated' }));
@@ -1376,10 +1438,10 @@
         el('button', { type: 'button', class: 'btn', text: 'Film another take', onclick: function () { d.film = null; keep(); refresh(n); } })]));
     } else {
       if (st === 'fail') bill.appendChild(el('p', { class: 'f-note warn', text: d.film.reason }));
-      bill.appendChild(el('div', { class: 'f-cost' }, [money(price), el('small', { text: f.seconds + ' seconds · 9:16 · with sound' })]));
+      bill.appendChild(el('div', { class: 'f-cost' }, [money(price), el('small', { text: (sc.shots ? (kept ? left + ' of ' + sc.shots.length + ' shots left' : sc.shots.length + ' shots') + ' · about ' + Math.round(left * SHOT) + ' seconds' : f.seconds + ' seconds') + ' · 9:16 · with sound' })]));
       if (!online) bill.appendChild(el('p', { class: 'f-note warn', text: 'Our GPU is offline right now, so nothing can be filmed. Your board is saved; come back to this node when it is on.' }));
       bill.appendChild(el('div', { class: 'f-foot' }, [
-        el('button', { type: 'button', class: 'btn btn-accent btn-lg', disabled: online ? null : '', html: svg(I.film) + (st === 'fail' ? 'Try again' : 'Film it') + ' · ' + money(price), onclick: function () { film(n); } }),
+        el('button', { type: 'button', class: 'btn btn-accent btn-lg', disabled: online ? null : '', html: svg(I.film) + (kept ? 'Film the ' + (left === 1 ? 'last shot' : left + ' shots left') : st === 'fail' ? 'Try again' : 'Film it') + ' · ' + money(price), onclick: function () { film(n); } }),
         el('p', { class: 'f-note', text: 'Nothing renders, and nothing is charged, until you press this.' })]));
     }
     box.appendChild(el('div', { class: 'f-film' }, [screen, bill]));

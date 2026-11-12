@@ -104,6 +104,12 @@ if MODEL:
     ev = [e for e in events(body) if e.get("type") == "flow_script"]
     check("the script step writes a shot for an idea", bool(ev) and len(str(ev[0].get("shot") or "")) > 20, body[-300:])
 
+    code, body = call("/api/action", {"name": "flow_script", "args": {"subject": {"kind": "idea", "text": "a commercial for a cordless vacuum", "title": "a cordless vacuum"},
+                                                                     "creator": {"kind": "none"}, "make": "commercial", "shots": 3, "seconds": 8}}, pid, timeout=180)
+    ev = [e for e in events(body) if e.get("type") == "flow_script"]
+    shots = (ev[0].get("shots") or []) if ev else []
+    check("a commercial is written as three shots and nobody speaks", len(shots) == 3 and all(len(str(x)) > 20 for x in shots) and not ev[0].get("line"), body[-300:])
+
     board = "Step 1, The subject: a paper plane (an idea, no product)\nStep 2, On camera: not answered yet\nFinal video: 0 clips\nWaiting on the person: step 2, on camera"
     code, body = call("/api/chat", {"text": "i want a video about a paper plane", "view": "editor", "board": board}, pid, timeout=240)
     ev = events(body)

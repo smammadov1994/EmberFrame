@@ -70,13 +70,22 @@ FILMS = {"generate_clip", "speak", "record_voice", "render"}
 p = project("Eval: ask first")
 r = say(p, "make me promote a tiktok shop product as myself")
 check("no product named: it asks instead of picking", "?" in r["said"] and not (set(r["tools"]) & {"shop_import", "plan_video", "generate_clip"}), r)
-check("no product named: the two buttons are offered", [b.lower() for b in r["buttons"]] == ["pick for me", "let me choose"], [r["buttons"], r["said"]])
+check("no product named: the two buttons are offered", [b.lower() for b in r["buttons"]][:2] == ["pick for me", "let me choose"], [r["buttons"], r["said"]])
 
 # 2. a described video: step one only, no money
 p = project("Eval: described video")
 r = say(p, "i want a video about a dinosaur walking through a city")
 check("a described video is laid out, not rendered", "plan_video" in r["tools"] and not r["approval"] and "generate_clip" not in r["tools"], r)
 check("a described video leaves who is on camera to the person", bool(r["workflow"]) and (r["workflow"].get("creator") or {}).get("kind") == "ask", r["workflow"])
+
+# 2b. a commercial: several cinematic shots, laid out, no money
+p = project("Eval: commercial")
+r = say(p, "make me a cinematic commercial for a cordless vacuum, nobody on camera")
+if not r["workflow"]:                                        # it may first ask whose choice the product is: the way out without a Shop product must be offered
+    check("a commercial with no product named: 'No product, my idea' is offered", any("idea" in b.lower() for b in r["buttons"]), [r["buttons"], r["said"]])
+    r = say(p, "No Shop product. Make it from my description.")
+check("a commercial is laid out as the Commercial format, not rendered", bool(r["workflow"]) and r["workflow"].get("make") == "commercial" and not r["approval"]
+      and not (set(r["tools"]) & {"generate_clip", "shop_search", "shop_import"}), r)
 
 # 3. the board says a step is waiting: point at it, change nothing
 board = ("Step 1, The subject: a dinosaur walking through a city · An idea (an idea, no product)\n"

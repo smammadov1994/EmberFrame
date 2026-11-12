@@ -43,6 +43,15 @@ are in [STUDIO.md](STUDIO.md).
 - "What to make" has a Look: phone footage or cinematic commercial. Cinematic is briefed like an
   advert and rendered at the highest quality. A product on its own starts as cinematic.
 
+**Commercial**
+- "What to make" has a new kind: Commercial. Two to four cinematic shots, written as one story,
+  filmed one after another and cut together in Final video. Nobody speaks. The price is per shot
+  and shown up front. Not yet rendered for real.
+- A commercial that stops part way keeps the shots it filmed; trying again films and charges only
+  the shots left.
+- Ask Ember for a commercial, an advert or something cinematic and it lays out this kind.
+- When Ember asks whose choice the product is, there is a third button: "No product, my idea".
+
 **Shop data**
 - Every Shop video now carries its product's sales, revenue trend, reviews, stock, commission and how
   many videos and creators already sell it.

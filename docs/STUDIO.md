@@ -36,6 +36,14 @@ designed camera move, shaped light, shallow focus, designed sound) and renders a
 quality, which takes longer and costs the same. With no one on camera the look starts as cinematic;
 with a presenter it starts as phone footage.
 
+**Commercial** is the one kind of video made of several shots. You pick 2, 3 or 4 shots; the script
+step writes them as one story (one box a shot, each editable); Film it renders them one after
+another, each about 5 seconds, cinematic, nobody speaking, and wires every shot into Final video in
+order. The price is the price of one shot times the number of shots, shown before anything renders.
+If a shot fails, the ones already filmed stay in the video and the button films only the shots left,
+at the price of those shots. A commercial has not been rendered for real yet (12 November 2026): the
+loop, the price and the wiring were checked with stand-in clips.
+
 The filmed clip appears to the right of Film it and is wired into Final video. New things always
 land to the right; Final video stays last.
 
@@ -187,8 +195,8 @@ cleared. The project (files, the cut, captions) is saved on the server.
 - The smoke test: start a second server (`EMBER_PORT=4181 uv run server/ember.py`), then
   `python3 server/tests/smoke.py`. Seventeen checks that spend nothing (served pages, projects, refusals,
   stop, approvals, no render without an approved price, plain error wording, saving the board, key and
-  data files not served). Add `--model` for two more that use the model key (script writing, and that a described video is not rendered
-  from chat).
+  data files not served). Add `--model` for three more that use the model key (script writing, a commercial written as three
+  shots, and that a described video is not rendered from chat).
 
 - A second server for tests: `EMBER_PORT=4181 uv run server/ember.py`. Send chat or actions to it
   with the headers `X-Ember-User` and `X-Ember-Project`.
