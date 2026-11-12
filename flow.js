@@ -588,7 +588,7 @@
           if (moved && t && t.id !== me.id) connect(me, t);
           else showMenu(me, moved ? toWorld(u.clientX, u.clientY) : { x: me.x + NW + GAP, y: me.y + NH / 2 });
         } else if (moved) keep();
-        else open(me.id);
+        else { peek = me.id; open(me.id); }                   // they opened it themselves: it may stay open even if finished
       };
       window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
     });
@@ -652,7 +652,14 @@
     if (isDone(n) && !G.guided) return 'Done. Drag a line out of its + to choose what comes next.';
     return T[n.type].say;
   }
-  function open(id) { G.open = id; hideMenu(); keep(); draw(); renderPanel(); var n = node(id); if (n) focusOn(n); }
+  var peek = null;                                            // a finished step the person opened by hand
+  function settle() {                                         // guided: a finished step's panel does not stay open by itself; the next waiting step takes over
+    var on = G.guided && G.open && node(G.open);
+    if (!on || on.type === 'media' || on.type === 'final' || on.type === 'film' || !isDone(on) || peek === on.id) return;
+    complete(on);
+    if (G.open === on.id) { G.open = null; keep(); draw(); renderPanel(); }   // nothing left to do after it: close
+  }
+  function open(id) { if (peek !== id) peek = null; G.open = id; hideMenu(); keep(); draw(); renderPanel(); var n = node(id); if (n) focusOn(n); }
   function complete(n) {                                     // a node has what it needs: lead on, or leave the next move to them
     keep(); draw();
     if (!G.guided) return void renderPanel();
@@ -1216,6 +1223,7 @@
     validate(); sync(); root.hidden = false;
     draw(); renderPanel();
     if (claimed) { var c0 = claimed; claimed = null; if (G.guided && G.open === c0.id) complete(c0); }
+    settle();
     if (!G.view) { V = { x: 0, y: 0, k: 1 }; if (G.open && node(G.open)) focusOn(node(G.open)); else fit(); world.classList.remove('glide'); } else apply(false);
   }
   function close() {
@@ -1231,6 +1239,7 @@
     if (root.hidden || !P()) return;
     sync(); draw(); keep();
     if (claimed) { var c0 = claimed; claimed = null; if (G.guided && G.open === c0.id) return void complete(c0); }
+    settle();
     var on = G.open && node(G.open);
     if (!on || on.type === 'media' || on.type === 'final') renderPanel();
   });
