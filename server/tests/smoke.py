@@ -81,6 +81,15 @@ check("exporting an empty video fails with a plain reason", bool(fail) and "Erro
 code, body = call("/api/action", {"name": "flow_script", "args": {}}, pid, timeout=60)
 check("the script step refuses to write about nothing", any(e.get("type") == "error" for e in events(body)) and not any(e.get("type") == "flow_script" for e in events(body)), body[-300:])
 
+board = {"guided": True, "nodes": [{"id": "n1", "type": "subject", "x": 0, "y": 0, "d": {}}], "wires": [], "saved": 1}
+code, body = call("/api/board", board, pid, method="PUT")
+code2, body2 = call("/api/board", project=pid)
+check("the board is saved beside the project and read back", code == 200 and code2 == 200 and json.loads(body2).get("nodes") == board["nodes"], body2[:160])
+code, body = call("/api/board", {"nodes": "x"}, pid, method="PUT")
+check("something that is not a board is refused (400)", code == 400, code)
+code, body = call("/api/board", {"nodes": [], "wires": [], "pad": "x" * 450_000}, pid, method="PUT")
+check("an oversized board is refused (413)", code == 413, code)
+
 code, body = call("/api/chat", {"text": ""}, pid)
 check("an empty chat message is refused (400)", code == 400, code)
 

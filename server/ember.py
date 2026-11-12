@@ -2221,6 +2221,33 @@ def get_project(x_ember_user: str | None = Header(None)):
             s.snapshot(p, "Starting point", force=True)      # so the first edit always has something to go back to
         return public(p, s, shop=True)
 
+@app.get("/api/board")
+def get_board(x_ember_user: str | None = Header(None)):
+    """The canvas of this project (its steps, nodes and wires), as the browser last saved it. Empty when there is none."""
+    f = store_for(x_ember_user).dir / "board.json"
+    try:
+        return json.loads(f.read_text()) if f.exists() else {}
+    except Exception:
+        return {}
+
+@app.put("/api/board")
+async def put_board(req: Request, x_ember_user: str | None = Header(None)):
+    """Keep the canvas beside the project, so it is there in another browser or after the browser's storage is cleared.
+    It is the browser's own document: kept as sent, never run, and outside the project's versions."""
+    raw = await req.body()
+    if len(raw) > 400_000:
+        raise HTTPException(413, "That board is too large to save.")
+    try:
+        body = json.loads(raw)
+    except Exception:
+        raise HTTPException(400, "Not a board.")
+    if not isinstance(body, dict) or not isinstance(body.get("nodes"), list) or not isinstance(body.get("wires"), list):
+        raise HTTPException(400, "Not a board.")
+    s = store_for(x_ember_user)
+    with s.lock:
+        (s.dir / "board.json").write_text(json.dumps(body))
+    return {"ok": True}
+
 @app.put("/api/project")
 async def put_project(req: Request, x_ember_user: str | None = Header(None)):
     """The user's own edits. Only the timeline, name and aspect are taken from the browser."""

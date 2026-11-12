@@ -113,15 +113,17 @@ either order; both come before "What to make".
 | `server/data/` | Per person, per project files. Not committed |
 | `server/.env` | Model key. Not committed, never printed |
 
-The board's graph is saved in the browser (`localStorage`, one per person and project). The
-project (files, the cut, captions) is saved on the server.
+The board's graph is saved in the browser at once (`localStorage`, one per person and project) and,
+a moment later, beside the project on the server (`board.json`, through `/api/board`). On load the
+newer of the two wins, so the board is there in another browser or after the browser's storage is
+cleared. The project (files, the cut, captions) is saved on the server.
 
 ## Testing without spending
 
 - The smoke test: start a second server (`EMBER_PORT=4181 uv run server/ember.py`), then
-  `python3 server/tests/smoke.py`. Fourteen checks that spend nothing (served pages, projects, refusals,
-  stop, approvals, no render without an approved price, plain error wording, key and data files not
-  served). Add `--model` for two more that use the model key (script writing, and that a described video is not rendered
+  `python3 server/tests/smoke.py`. Seventeen checks that spend nothing (served pages, projects, refusals,
+  stop, approvals, no render without an approved price, plain error wording, saving the board, key and
+  data files not served). Add `--model` for two more that use the model key (script writing, and that a described video is not rendered
   from chat).
 
 - A second server for tests: `EMBER_PORT=4181 uv run server/ember.py`. Send chat or actions to it

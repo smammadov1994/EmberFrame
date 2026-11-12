@@ -67,7 +67,23 @@
     else n.d.film = { state: 'fail', reason: 'The render did not report back. If it finished, the clip is in Media.' };
   });
   var V = G.view || { x: 0, y: 0, k: 1 };
-  function keep() { G.view = V; delete G.pristine; try { localStorage.setItem(KEY, JSON.stringify(G)); } catch (e) {} }
+  var pushT = 0, pushOff = false;
+  function keep() {                                           // saved in this browser at once, and beside the project on the server a moment later
+    G.view = V; delete G.pristine; G.saved = Date.now();
+    try { localStorage.setItem(KEY, JSON.stringify(G)); } catch (e) {}
+    if (pushOff) return;
+    clearTimeout(pushT);
+    pushT = setTimeout(function () { api('/api/board', { method: 'PUT', body: G }).catch(function () { pushOff = true; }); }, 2500);   // an older server has no board store: stop trying
+  }
+  api('/api/board').then(function (b) {                       // another browser, or cleared storage: the server's copy is the board
+    if (!b || !Array.isArray(b.nodes) || !b.nodes.length || !Array.isArray(b.wires)) return;
+    if (!G.pristine && (G.saved || 0) >= (b.saved || 0)) return;   // this browser's copy is the newer one
+    G = b; V = G.view || { x: 0, y: 0, k: 1 }; G.open = null;
+    G.nodes.forEach(function (n) { if (n.type === 'film' && n.d && n.d.film && n.d.film.state === 'run') n.d.film.resumed = true; });
+    try { localStorage.setItem(KEY, JSON.stringify(G)); } catch (e) {}
+    Object.keys(els).forEach(function (id) { els[id].remove(); delete els[id]; });
+    if (!root.hidden && P()) { validate(); sync(); draw(); renderPanel(); apply(false); }
+  }).catch(function () {});
   function P() { return S.project(); }
   function has(id) { return !!(id && P() && P().assets[id]); }
   function node(id) { return G.nodes.filter(function (n) { return n.id === id; })[0] || null; }
