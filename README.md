@@ -115,6 +115,7 @@ commands ("cut from 2 to 4", "clean it up", "add captions", "export").
 | `supabase/migrations/` | The data model for Supabase (Postgres): people, projects, library, the cut, chats, boards, jobs, exports, the ledger, with row level security. Not connected to the studio yet |
 | `supabase/tests/test_schema.py` | Applies the migrations to a throwaway Postgres and checks the rules hold: `uv run supabase/tests/test_schema.py supabase/migrations` |
 | `server/tests/ember_eval.py` | Behaviour checks for Ember against a second copy on port 4181: does it ask first, lay a video out instead of rendering, read the board, take hooks from real videos. Uses the model key; never renders |
+| `server/tests/redteam.py` | Ways to beat the studio: about 380 checks that try to make it spend without a press, break a rule, give something away or crash (the server, the script step, the film step, and Ember in chat). Runs only against a test server (`EMBER_DRY=1`), which cannot render. See [docs/STUDIO.md](docs/STUDIO.md) |
 | `server/tests/smoke.py` | Smoke test for the server against a second copy on port 4181. Spends nothing unless `--model` is passed. See [docs/STUDIO.md](docs/STUDIO.md) |
 | `server/raea_tools.py` | Ember's three raea tools (`raea_docs`, `raea_files`, `raea`) and what Ember is told about them. Needs [raea](https://github.com/shinyobjectz/raea) installed (`~/.local/bin/raea`); without it the studio runs as before |
 

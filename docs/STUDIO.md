@@ -180,7 +180,36 @@ and Ember asks, with "Pick for me", "Let me choose" and "No product, my idea".
 - No invented numbers. Views and sales are shown only when the person asks for numbers.
 - Users never reach the GPU or see machine addresses. A failed step shows our own message as
   written; any other error is shown as "That did not work", with addresses and paths removed
-  (`plain()` in `server/ember.py`).
+  (`plain()` in `server/ember.py`). An unexpected error sends only its kind to the browser, never
+  its text.
+
+### The last check before anything is filmed (`film_gate`)
+
+Whoever wrote the brief (Ember, the script step, or the person typing into a script box), it is
+checked once more right before it goes to the video model, and before any price is shown or taken.
+It is refused, with a sentence saying what to change and that nothing was charged, when:
+
+- the spoken line has the presenter claim to have used, tried or bought the product;
+- a real, named person is put on camera or imitated;
+- the product is said to cure or treat a medical condition;
+- the content is sexual, or shows someone being hurt or demeaned;
+- it asks to hide the AI-generated label or to pass the clip off as real footage or a real customer.
+
+The first is also caught by a pattern, with no model. The others need the model: when no model is
+connected, only the pattern is checked. A photo used as the avatar is not checked for who it shows;
+the rights to that face are the person's.
+
+### Money
+
+- A price that is not a real number (`NaN`, infinity, text) counts as no price. Before 12 November
+  2026 `approved: "NaN"` rendered for free.
+- One render at a time for each account, on the server and in the browser. Three fast presses on
+  Film used to start three renders.
+- From the chat, Ember can only add a shot to a video that already has a clip, and that shows a
+  price card. A new video is always laid out on the canvas, where Film shows the price.
+- A library voice asked for in the chat shows a card first (it uses voice credits).
+- Ember is told the prices (`PRICES` in the studio state, from the one rate in `server/.env` or the
+  default) and may quote only those. A commercial is priced by its shots.
 
 ## Where things live
 
@@ -222,6 +251,20 @@ cleared. The project (files, the cut, captions) is saved on the server.
   data files not served). Add `--model` for three more that use the model key (script writing, a commercial written as three
   shots, and that a described video is not rendered from chat).
 
+- The attack suite: `EMBER_DRY=1 EMBER_PORT=4181 uv run server/ember.py`, then
+  `python3 server/tests/redteam.py`. A test server (`EMBER_DRY=1`) stops at every point that would
+  cost money (a render, a library voice), declines every approval card at once, and lists what
+  reached those points at `/api/dry`. The suite refuses to run against any other server. About 380
+  checks in seven groups, which can be run one at a time (`redteam.py api film`):
+  `api` (paths, other accounts, broken bodies, uploads), `script` and `film` (the board's steps sent
+  things the board never sends: prices, lengths, hostile text), and `money`, `rules`, `secrets`,
+  `smart` (Ember in chat: talked into spending, breaking a rule, giving something away, or simply
+  misunderstanding). The chat groups call the model, about ten minutes in all. `--out FILE` writes
+  every reply to read by hand. Run it after changing the instructions, a tool or a board step.
+- What it does not cover: a real render (so the clip itself, its label in the file, and the
+  one-render-at-a-time guard under load), a real voice, and anything that needs a real Shop video
+  imported.
+
 - A second server for tests: `EMBER_PORT=4181 uv run server/ember.py`. Send chat or actions to it
   with the headers `X-Ember-User` and `X-Ember-Project`.
 - Never press Film to test. Stop at the priced button, or stub the `flow_film` request in the page.
@@ -232,6 +275,8 @@ cleared. The project (files, the cut, captions) is saved on the server.
 ## Not built yet
 
 - Lip-synced voices other than the video model's own; library and own voices are voiceovers.
-- Supabase accounts and storage (`supabase/` holds the data model only).
+- Supabase accounts and storage (`supabase/` holds the data model only). Until then an account is
+  only a name sent by the browser: anyone who can reach the server and knows an account's name can
+  open its projects and files. The studio must not be put on the open internet like this.
 - The phone layout is basic: the rail sits on top, the board opens fitted to the screen, a step opens
   as a sheet above the message field. It has not been tried on a real phone.

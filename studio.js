@@ -986,6 +986,7 @@
   function send(text, approved, typed) {                      // approved: a price the person just agreed to by pressing a priced button; typed: it came from the message field
     text = (text || '').trim();
     if (!text || !P) return;
+    if (text.length > 6000) { chatOpen(true); note('That message is ' + text.length.toLocaleString() + ' characters. Ember reads up to 6,000: shorten it and send again.'); return; }
     if (busy) {                                              // one thing at a time: say so instead of swallowing the message
       var cf = $('#chat-form'); cf.classList.remove('nope'); void cf.offsetWidth; cf.classList.add('nope');
       $('#ember-state').textContent = 'Still working. Press stop, or wait';

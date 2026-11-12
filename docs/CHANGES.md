@@ -5,6 +5,26 @@ are in [STUDIO.md](STUDIO.md).
 
 ## 12 November 2026
 
+**Found by trying to beat it** (`server/tests/redteam.py`)
+- A price of `NaN` rendered for free. Fixed: a price that is not a real number is no price.
+- Three fast presses on Film started three renders. Fixed: one render at a time for each account.
+- Nothing checked what was typed into a script box before it was filmed. Now a line where the
+  presenter claims to have used the product, a real named person, a cure, sexual content, or
+  "do not label this as AI" is refused before the price, with what to change.
+- A script was written from an empty idea or a file that no longer exists. Now refused.
+- Sales figures typed into an idea ("sold 2 million this week") went into the script. Now only
+  the listing's own figures do.
+- Ember did not know the prices ("Unknown"), and quoted $0.32 for a commercial that costs $0.63.
+  It is now told the prices and a commercial is priced by its shots.
+- Ember rendered from chat instead of laying a video out. From chat it can now only add a shot to
+  a video that already has one; a new video is always laid out on the canvas.
+- A library voice was bought from a chat message with no tap. It now shows a card first.
+- Asked for a Python script, Ember wrote one. It now says that is outside the studio.
+- A message over 6,000 characters was cut silently and the cut part ignored. It is now refused
+  whole, and the page says so before sending.
+- Broken requests (a body that is not JSON, text where a number belongs) crashed the server with
+  a 500. They are refused with a plain message.
+
 **Filming again**
 - A Film it step keeps one take in Final video. Film another take, or filming after the script
   changed, replaces the earlier clips from that step instead of adding to them. They stay in Media.

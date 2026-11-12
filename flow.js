@@ -1359,6 +1359,7 @@
   var filmTick = 0;
   function starterCut() { var v = P().tracks.video; return !v.length || v.every(function (c) { var a = P().assets[c.asset]; return a && (a.name === 'Presenter take' || a.name === 'Savanna walk'); }); }
   function film(n) {
+    if (filming()) return;                                   // a second press while a clip films starts nothing
     var c = ctx(n.id), f = c.format.d, sc = c.script.d.script, sub = c.subject.d.subject, cr = (c.creator && c.creator.d.creator) || { kind: 'none' }, vo = (c.voice && c.voice.d.voice) || { kind: 'model' };
     var shots = sc.shots && sc.shots.length ? sc.shots.slice() : null, total = shots ? shots.length : 1;
     var tk = takes(n, sc), got = tk.kept.map(function (m) { return m.asset; }), first = got.length, why = '', said = null, look = shots ? 'cinematic' : (f.look || (cr.kind === 'none' ? 'cinematic' : 'phone'));
