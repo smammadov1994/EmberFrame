@@ -105,6 +105,10 @@ Where it is used:
   it was written from.
 - "Pick for me" chooses a product that is in stock, selling and not crowded, and says why.
 - The rail can order results by Sales; a product that is out of stock is marked.
+- Ember's `shop_search` can rank and narrow the results: by revenue, units, sales growth, commission,
+  views gained in a day or least crowded; in stock only; a commission floor; a ceiling on how many
+  videos sell it; a price ceiling; a category word. A ranking of products shows each product once.
+  Ask in words: "skincare with at least 15% commission that is growing and not crowded".
 - Numbers are still shown to the person only when they ask for numbers.
 
 Kaiyros has more that the studio does not read yet: products, sellers and creators lists with

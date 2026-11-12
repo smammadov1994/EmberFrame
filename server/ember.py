@@ -900,7 +900,7 @@ def shop_row(v: dict[str, Any]) -> dict[str, Any]:
             "views_24h": m.get("views_delta_24h"), "saves": m.get("saves_total"), "shares": m.get("shares_total"),
             "comments": m.get("comments_total"), "posted": str(v.get("posted_at") or "")[:10] or None,
             "hashtags": [str(h)[:30] for h in ((v.get("taxonomy") or {}).get("hashtags") or [])][:6],
-            "product": (pr.get("title") or "")[:110] or None,
+            "product": (pr.get("title") or "")[:110] or None, "product_id": str(pr["id"]) if pr.get("id") else None,
             "price": (pr.get("price") or {}).get("current_amount"),
             "price_was": (pr.get("price") or {}).get("original_amount"),
             "units_7d": pm.get("units_in_range") or pm.get("units_7d"),
@@ -935,13 +935,44 @@ def listing_facts(row: dict[str, Any]) -> list[str]:
         f.append("Stock: the listing shows it as out of stock right now, so do not tell people to buy it today")
     return f
 
-def t_shop_search(turn: Turn, sort: str = "trending", query: str | None = None, n: int = 8) -> dict[str, Any]:
+RANKS = {"revenue": "revenue_7d", "units": "units_7d", "growth": "sales_trend_pct", "commission": "commission_pct", "momentum": "views_24h",
+         "least_crowded": "videos_selling"}
+
+def t_shop_search(turn: Turn, sort: str = "trending", query: str | None = None, n: int = 8, rank_by: str | None = None,
+                  in_stock: bool = False, min_commission: float | None = None, max_videos_selling: int | None = None,
+                  max_price: float | None = None, category: str | None = None) -> dict[str, Any]:
     n = max(1, min(int(n), 1000))                           # the data service pages 100 at a time; a few hundred take seconds
     sort = sort if sort in ("top", "latest", "trending") else "trending"
-    res, used, got = shop_fetch(turn, sort, query, n)
+    narrowing = bool(rank_by in RANKS or in_stock or min_commission or max_videos_selling or max_price or category)
+    res, used, got = shop_fetch(turn, sort, query, max(n, 100) if narrowing else n)   # narrowing needs a pool to choose from
     rows = [shop_row(v) for v in json.loads(Path(res["videos_json"]).read_text())]
     if used != sort and sort == "top":
         rows.sort(key=lambda r: -(r["views"] or 0))             # asked for the most viewed: order what came back by views
+    pool = len(rows)
+    if in_stock:
+        rows = [r for r in rows if r.get("stock") != "out_of_stock"]
+    if min_commission:
+        rows = [r for r in rows if (r.get("commission_pct") or 0) >= float(min_commission)]
+    if max_videos_selling:
+        rows = [r for r in rows if r.get("videos_selling") is not None and r["videos_selling"] <= int(max_videos_selling)]
+    if max_price:
+        rows = [r for r in rows if r.get("price") is not None and float(r["price"]) <= float(max_price)]
+    if category:
+        want = str(category).lower()
+        rows = [r for r in rows if want in str(r.get("category_path") or "").lower()]
+    if rank_by in RANKS and rank_by != "momentum":          # a ranking of products: one row a product, its most viewed video
+        best: dict[str, dict[str, Any]] = {}
+        for r in rows:
+            k = r.get("product_id") or r.get("product") or r["id"]
+            if k not in best or (r.get("views") or 0) > (best[k].get("views") or 0):
+                best[k] = r
+        rows = list(best.values())
+    if rank_by in RANKS:
+        key = RANKS[rank_by]
+        rows = [r for r in rows if r.get(key) is not None]
+        rows.sort(key=lambda r: r[key] if rank_by == "least_crowded" else -r[key])
+    if narrowing:
+        rows = rows[:n]
     with turn.store.lock:
         p = turn.project()
         p["shop"] = {"sort": used, "query": query, "n": got, "videos": rows, "more": len(rows) >= got}
@@ -953,6 +984,9 @@ def t_shop_search(turn: Turn, sort: str = "trending", query: str | None = None, 
                            "fields": "views_24h: views gained in the last day. revenue_7d: dollars, estimated by the data service from units and the listed price. "
                                      "sales_trend_pct: the last 7 days of revenue against the 7 before. videos_selling and creators_selling: how many videos and creators "
                                      "already sell this product. commission_pct: what an affiliate earns per sale. stock: only shown when known."}
+    if narrowing:
+        out["narrowed"] = f"{len(rows)} of the {pool} videos fetched matched what was asked for and are shown in that order." if rows else \
+                          f"None of the {pool} videos fetched matched. Loosen a limit or change the search words, and say so."
     if len(rows) > len(seen):
         out["rest"] = f"{len(rows) - len(seen)} more are in the person's Shop grid; a videos block shows all of them. Search again with a query to narrow down."
     if used != sort or got != n:
@@ -1543,8 +1577,13 @@ TOOLS: list[dict[str, Any]] = [
   "description": "See up to 6 frames of a library file at the given source times. Use when the edit depends on what is on screen.",
   "input_schema": {"type": "object", "properties": {"asset": {"type": "string"}, "times": {"type": "array", "items": {"type": "number"}}}, "required": ["asset", "times"]}},
  {"name": "shop_search", "fn": t_shop_search, "label": "Searching TikTok Shop",
-  "description": "Search TikTok Shop for videos that are selling: title, creator, views, likes, product, price, 7-day units. sort is 'trending', 'top' or 'latest'. Results also appear in the user's Shop tab.",
-  "input_schema": {"type": "object", "properties": {"sort": {"type": "string", "enum": ["trending", "top", "latest"]}, "query": {"type": "string"}, "n": {"type": "integer", "description": "How many, 1 to 300. Ask for 100 when the person wants to see or browse videos; thousands exist, so a query narrows better than a bigger number."}}}},
+  "description": "Search TikTok Shop for videos that are selling, with each product's price, 7-day units and revenue, sales trend, rating and reviews, stock, commission, and how many videos and creators already sell it. "
+   "sort is the data service's own order: 'trending', 'top' or 'latest'. To find what a seller or affiliate wants, rank and narrow the results: rank_by 'revenue', 'units', 'growth' (sales trend), "
+   "'commission', 'momentum' (views gained in the last day) or 'least_crowded'; in_stock true; min_commission (percent); max_videos_selling; max_price (dollars); category (a word from the category, "
+   "such as 'skincare'). Ranking and narrowing work on the videos fetched for the query, so give a query when you can. Results also appear in the user's Shop tab.",
+  "input_schema": {"type": "object", "properties": {"sort": {"type": "string", "enum": ["trending", "top", "latest"]}, "query": {"type": "string"},
+     "rank_by": {"type": "string", "enum": ["revenue", "units", "growth", "commission", "momentum", "least_crowded"]}, "in_stock": {"type": "boolean"},
+     "min_commission": {"type": "number"}, "max_videos_selling": {"type": "integer"}, "max_price": {"type": "number"}, "category": {"type": "string"}, "n": {"type": "integer", "description": "How many, 1 to 300. Ask for 100 when the person wants to see or browse videos; thousands exist, so a query narrows better than a bigger number."}}}},
  {"name": "shop_import", "fn": t_shop_import, "label": "Bringing in the reference",
   "description": "Download videos from the last shop_search into the library as references, by id. A reference shows how a selling video is built; it can be watched, transcribed and looked at, but never exported.",
   "input_schema": {"type": "object", "properties": {"video_ids": {"type": "array", "items": {"type": "string"}}}, "required": ["video_ids"]}},
