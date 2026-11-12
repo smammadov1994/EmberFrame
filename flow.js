@@ -478,6 +478,7 @@
   function removeNode(n) {
     if (G.nodes.length < 2 || n.type === 'final') return;
     if (filming(n)) return void stop(filming(n), 'This is being filmed right now. Stop the render in "Film it" first, or wait for it to finish.');
+    if (n.d.via) S.chatPoint(false, null, true);            // it was being answered by typing: the field goes back to normal chat
     if (n.type === 'media' && inCut(n.d.asset)) S.cut.remove(n.d.asset);        // off the canvas means out of the video
     outs(n.id).forEach(function (m) { clear(m, true); changed(m); });
     G.nodes = G.nodes.filter(function (m) { return m.id !== n.id; });
@@ -734,6 +735,7 @@
   }
   function open(id) { if (peek !== id) peek = null; G.open = id; hideMenu(); keep(); draw(); renderPanel(); var n = node(id); if (n) focusOn(n); }
   function complete(n) {                                     // a node has what it needs: lead on, or leave the next move to them
+    if (n.d.via) { delete n.d.via; S.chatPoint(false, null, true); }   // it was being answered by typing and got answered another way: the field goes back to normal chat
     keep(); draw();
     if (!G.guided) return void renderPanel();
     var o = outs(n.id);
@@ -1391,7 +1393,7 @@
       say('Start over clears the board and takes ' + clips.length + (clips.length === 1 ? ' clip' : ' clips') + ' out of your video. Your files stay in Media. Press again to confirm.');
       clearTimeout(resetT); resetT = setTimeout(unsure, 6000); return;
     }
-    unsure();
+    unsure(); S.chatPoint(false, null, true); S.pick(null);
     clips.forEach(function (id) { S.cut.remove(id); });
     if (P().tracks.captions.length) S.cut.clearCaptions();
     G = fresh(); delete G.pristine; G.open = null; SEL = {}; claimed = null; peek = null; V = { x: 0, y: 0, k: 1 }; shopTried = false;
