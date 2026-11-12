@@ -172,9 +172,16 @@
         th,
         el('span', { class: 'src ' + tag[0], text: tag[1] }),
         el('div', { class: 'meta' }, [el('b', { text: a.name }), el('span', { text: a.kind === 'image' ? 'image' : fmt(a.duration) })]),
-        a.kind !== 'image' ? el('button', { type: 'button', class: 'add', 'aria-label': 'Add ' + a.name + ' to the timeline', text: '+', onclick: function () { addAsset(a.id); } })
+        a.kind !== 'image' && !a.reference ? el('button', { type: 'button', class: 'add', 'aria-label': 'Add ' + a.name + ' to the final video', title: 'Add to the final video', text: '+', onclick: function () { addAsset(a.id); } })
           : !a.reference ? el('button', { type: 'button', class: 'add me' + (a.id === P.avatar ? ' is' : ''), title: a.id === P.avatar ? 'This is your avatar. Click to clear.' : 'Use as my avatar', 'aria-label': 'Use ' + a.name + ' as my avatar',
-              html: svg('<circle cx="10" cy="7" r="3.2"/><path d="M3.8 16.5c.8-3.2 3.200-4.800 6.200-4.800s5.400 1.600 6.200 4.800"/>'), onclick: function () { setAvatar(a.id === P.avatar ? null : a.id); } }) : null,
+              html: svg('<circle cx="10" cy="7" r="3.2"/><path d="M3.8 16.5c.8-3.2 3.200-4.800 6.200-4.800s5.400 1.600 6.200 4.800"/>'), onclick: function (e) {
+                var b = e.currentTarget;                 // clearing the avatar takes two clicks: videos of you are filmed from it
+                if (a.id === P.avatar && !b.classList.contains('sure')) {
+                  b.classList.add('sure'); b.title = 'Click again to clear your avatar';
+                  return void setTimeout(function () { b.classList.remove('sure'); b.title = 'This is your avatar. Click to clear.'; }, 3500);
+                }
+                setAvatar(a.id === P.avatar ? null : a.id);
+              } }) : null,
         el('button', { type: 'button', class: 'rm', 'aria-label': 'Remove ' + a.name + ' from the library', text: '✕', onclick: function (e) {             // deleting a file cannot be undone: the first click asks, the second deletes
           var b = e.currentTarget;
           if (!b.classList.contains('sure')) {
@@ -266,6 +273,7 @@
   }
   function addAsset(id, index, start) {
     var a = A(id); if (!a || a.kind === 'image') return;
+    if (a.reference) return void note('That is another creator\'s selling video. It is here to work from and cannot go into your video.');
     remember();
     var c = { id: uid('c'), asset: id, in: 0, out: a.duration, volume: 1 };
     if (a.kind === 'audio') { c.start = start === undefined ? T : start; P.tracks.audio.push(c); }
@@ -1027,7 +1035,7 @@
       var top = sv.slice().sort(function (x, y) { return (y.views || 0) - (x.views || 0); })[0];
       out.push({ label: 'Remake the top one', fn: function () { pick('I pick this one: "' + (top.product || top.title || 'video').slice(0, 80) + '" by @' + (top.creator || 'creator') + ' (video id ' + top.id + ').'); } });
       out.push({ label: 'What do the winners share?', say: 'Look at the top videos in this search and tell me what they have in common: the hook, the length, the offer.' });
-      out.push({ label: 'Back to the editor', fn: closeBrowse });
+      out.push({ label: 'Back to the canvas', fn: closeBrowse });
     } else {
       var refs = Object.keys(P.assets).filter(function (k) { return P.assets[k].reference; });
       if (refs.length && !REVIEW.findings.some(function (f) { return f.id === 'ref' || f.id === 'refonly'; }))
@@ -1060,7 +1068,7 @@
       el('span', { class: 'orb hi', html: mascot(), 'aria-hidden': 'true' }),
       el('h3', { html: 'What are we <em>making</em> today?' }),
       el('p', { text: on ? 'Tell me what you want to make, or follow the steps on the board. I can pick a product, find hooks that sell, write the script, caption and export.'
-                         : 'My full model is not connected on this machine, so for now I follow plain commands like "cut from 2 to 4" or "add captions". The editor works fully by hand.' }),
+                         : 'My full model is not connected on this machine, so for now I follow plain commands like "cut from 2 to 4" or "add captions". The board works fully by hand.' }),
       el('div', { class: 'hello-cards' }, cards.map(function (c) {
         return el('button', { type: 'button', html: svg(c[0]), onclick: function () { if (c[3]) return void send(c[3]);
           if (window.EmberFlow && window.EmberFlow.describe && window.EmberFlow.describe()) return;   // step one, answered by typing: the same flow as the board

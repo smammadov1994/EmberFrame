@@ -612,7 +612,7 @@
     else if (n.type === 'format' && d.make) { t = MAKES.filter(function (x) { return x.id === d.make; })[0].t; s = d.seconds + ' seconds · ' + money(cost(d.seconds)); }
     if (n.type === 'script' && d.script) { t = d.script.line ? '"' + d.script.line + '"' : d.script.shot; s = d.script.line ? d.script.line.split(/\s+/).length + ' words' : 'No speech'; }
     if (n.type === 'voice' && d.voice) { t = d.voice.kind === 'model' ? 'The presenter speaks' : d.voice.kind === 'fish' ? d.voice.title : 'My own voice'; s = d.voice.kind === 'model' ? 'Lips match' : 'Voiceover'; }
-    if (n.type === 'film' && d.film) { c = ctx(n.id); t = d.film.state === 'done' ? 'Filmed' : d.film.state === 'run' ? 'Filming now' : 'Did not finish'; s = d.film.state === 'done' ? 'On your timeline' : d.film.state === 'run' ? 'A few minutes' : 'Open to try again'; img = d.film.state === 'done' && has(d.film.asset) ? thumb(P().assets[d.film.asset]) : ''; }
+    if (n.type === 'film' && d.film) { c = ctx(n.id); t = d.film.state === 'done' ? 'Filmed' : d.film.state === 'run' ? 'Filming now' : 'Did not finish'; s = d.film.state === 'done' ? 'In your final video' : d.film.state === 'run' ? 'A few minutes' : 'Open to try again'; img = d.film.state === 'done' && has(d.film.asset) ? thumb(P().assets[d.film.asset]) : ''; }
     return t ? { t: t, s: s, img: img } : null;
   }
   function build(n) {
@@ -711,7 +711,9 @@
     if (on) { var nd = needs(on); say(nd.length ? 'This one needs ' + nd.map(function (x) { return T[x.type].title.toLowerCase(); }).join(' and ') + ' first. Add it from here, or drag a wire into this node.' : guideFor(on)); }
     else {
       var cur = current();
-      say(!cur ? 'Drag media in, wire nodes together, or tell Ember what to do. Drag on the empty board to select several nodes; hold Space and drag to move the board. Whatever is wired into Final video is your video.'
+      var clipsIn = P().tracks.video.length;
+      say(!cur && clipsIn ? 'Your video has ' + clipsIn + (clipsIn === 1 ? ' clip' : ' clips') + '. Click Final video to play it, caption it and export it. Start over begins a new one.'
+        : !cur ? 'Drag media in, wire nodes together, or tell Ember what to do. Drag on the empty board to select several nodes; hold Space and drag to move the board. Whatever is wired into Final video is your video.'
         : cur.type === 'subject' ? 'Step 1: click "What is the video about?" to pick a product, or drop a product picture on the canvas. Or tell Ember below and it sets the video up.'
         : 'Step ' + (ORDER.indexOf(cur.type) + 1) + ': click "' + T[cur.type].ask + '" to carry on.');
     }

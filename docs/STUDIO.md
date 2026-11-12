@@ -59,6 +59,8 @@ either order; both come before "What to make".
 - **Start over** wipes the board and takes the clips out of the video. Files stay in Media. It asks
   once when the video has clips.
 - **Deleting a file** from Media asks once. A step that used a deleted file opens again.
+- **Clearing the avatar** takes two clicks. Another creator's selling video has no "add to the
+  final video" button and cannot be wired in; export also refuses it.
 - Drag on the empty board selects several nodes (move together, Backspace removes, Escape lets go,
   Shift-click adds). Space and drag, the middle button, or two-finger scroll moves the board.
   **Fit** tidies the layout, then fits it in view.
