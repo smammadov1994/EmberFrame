@@ -32,6 +32,12 @@ are in [STUDIO.md](STUDIO.md).
 - Hooks and script ideas come from how the most viewed Shop videos really open (`find_hooks`).
 - Reads the board with every message: what is chosen, what is waiting, whether a render is running.
 - Does only what was asked; offers the rest as buttons.
+- With no avatar saved it no longer stalls asking for a photo: it lays the video out and leaves
+  who is on camera to step 2.
+- Its memory of earlier turns stays small and current, so long sessions do not slow down or act on
+  an old picture of the project.
+- `server/tests/ember_eval.py`: fourteen behaviour checks (asks first, lays out instead of
+  rendering, reads the board, holds back during a render, hooks from real videos, no leaks).
 
 **Shop data**
 - Every Shop video now carries its product's sales, revenue trend, reviews, stock, commission and how

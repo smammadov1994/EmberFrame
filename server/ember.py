@@ -1144,6 +1144,8 @@ def t_speak(turn: Turn, text: str, voice_id: str | None = None, start: float | N
 def t_generate_clip(turn: Turn, prompt: str, seconds: float = 6, aspect: str | None = None, quality: str = "standard",
                     start_image: str | None = None, name: str | None = None, add_to_timeline: bool = True,
                     reference_images: list[str] | None = None) -> dict[str, Any]:
+    if "a render is running now" in (getattr(turn, "board", "") or ""):
+        raise ValueError("A clip is already being filmed on the canvas. Wait for it to finish, then ask again.")
     p = turn.project()
     reference_images = [str(x) for x in (reference_images or [])][:4]
     if reference_images and start_image:
@@ -1457,6 +1459,8 @@ def t_plan_video(turn: Turn, subject_asset: str | None = None, idea: str | None 
                  creator_text: str | None = None, make: str = "clip", seconds: float = 8, voice: str = "presenter",
                  voice_id: str | None = None, voice_name: str | None = None, voice_asset: str | None = None) -> dict[str, Any]:
     """Lay a video out as steps on the canvas, filled in. Nothing is filmed: the person reads it and presses Film."""
+    if "a render is running now" in (getattr(turn, "board", "") or ""):
+        raise ValueError("A clip is being filmed on the canvas right now, so its steps cannot be changed. Wait for it to finish, then ask again.")
     p = turn.project()
     plan: dict[str, Any] = {}
     if subject_asset:
@@ -1700,7 +1704,7 @@ How to work
   2. Lay it out with plan_video. Do not write the script yourself and do not call generate_clip for this. plan_video puts every step on the canvas, filled in with your choices: the subject, who is on camera, the kind of video and its length, the script, the voice, and Film with its price. The script is written there from the product facts (the reference's beats, every word new, facts only, no claim that the presenter used it). Pass subject_asset (the selling video), creator 'avatar' when one is saved, make 'clip' unless they asked for another kind, and seconds 8 unless they said a length.
   3. Then tell them, in two or three short sentences: which product you chose and the one reason why (a number from the listing belongs here), which picture is on camera (name the avatar file), the kind of video and its length, and that every step is on the canvas to click and change before anything is filmed. Nothing renders and nothing is charged until they press Film there. A video they only describe in words, with no product ("a video about a dinosaur"), is laid out the same way and never rendered from the chat: plan_video with idea and creator 'ask', so they still choose who is on camera, the style, the script and the voice on the canvas; skip the product question for it. generate_clip is only for when they tell you in so many words to render right now without the steps, or for one extra shot inside a video that already has its steps; then brief it like a director, with reference_images set to the AVATAR and the product's photo.
   4. Filming is theirs to start: they press Film on the canvas. After a clip is filmed, finish it only if they ask: captions from the speech, and a caption at the top naming the product (that is what they are pointing at). Above the presenter you may also put a product close-up that you film; never the other creator's footage.
-- If the studio state says no avatar is saved, ask for one before filming, in one line: they can drop a photo of their creator into the chat with the paperclip. When they do, call set_avatar and carry on. If they would rather not, lay the video out with creator 'ask' so they choose who is on camera on the canvas (a described presenter, or no one), and say that it will not be them.
+- If the studio state says no avatar is saved, do not stop to ask for a photo and do not hold the video back for one: lay it out with plan_video and creator 'ask'. Step 2 on the canvas is where they add a photo, describe a presenter or choose no one; say that in one line. If they drop a photo of their creator into the chat, call set_avatar and carry on. If they would rather not, lay the video out with creator 'ask' so they choose who is on camera on the canvas (a described presenter, or no one), and say that it will not be them.
 - The video model sometimes garbles the words a presenter says. If the person says a clip's speech is wrong or gibberish, fix it without filming again: list_voices, then speak the exact line with a library voice placed at that clip's start, and set that clip's volume to 0 with edit_timeline. Say in one sentence that it is now a voiceover, so the lips will not match.
 - The voice in a filmed clip comes from the video model, matched to the presenter. If they want their real voice instead (a voiceover, narration over product shots), use record_voice: it opens a recorder and their take lands on the audio track. Speaking new lines in a copy of their voice (cloning) is not built yet; say so only if they ask for exactly that.
 - Another creator's footage, face and voice never go into an export. That is why a clip is filmed new. Say this only if they ask for the original file itself, and in one sentence.
@@ -1806,6 +1810,41 @@ def run_claude(turn: Turn, text: str) -> str:
     turn.store.save_messages(messages)
     return "".join(said).strip()
 
+KEEP_TURNS = 10                                             # how many of the person's past messages Ember re-reads
+
+def trim_history(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """What Ember re-reads of earlier turns, kept small and never stale. The studio state attached to an old message
+    describes a project that has since changed, so only the newest message carries one. Old frames (pictures) and long
+    tool results are cut down, and only the last few turns are kept. Cuts fall on the person's messages, so a call
+    always stays with its result."""
+    users = [i for i, it in enumerate(items) if it.get("role") == "user" and isinstance(it.get("content"), str)]
+    if len(users) > KEEP_TURNS:
+        items = items[users[-KEEP_TURNS]:]
+        users = [i for i, it in enumerate(items) if it.get("role") == "user" and isinstance(it.get("content"), str)]
+    recent = users[-2] if len(users) >= 2 else 0             # the last two turns keep their tool results in full
+    out = []
+    for i, it in enumerate(items):
+        it = dict(it)
+        if it.get("role") == "user" and isinstance(it.get("content"), str):
+            it["content"] = it["content"].split("\n\n<studio_state>")[0]
+        elif it.get("role") == "user" and isinstance(it.get("content"), list):
+            it["content"] = [{"type": "input_text", "text": "[frames shown earlier are no longer attached]"}]
+        elif it.get("type") == "function_call_output" and i < recent and isinstance(it.get("output"), str) and len(it["output"]) > 1500:
+            it["output"] = it["output"][:1500] + " …[shortened: an older result]"
+        out.append(it)
+    return out
+
+def log_turn(turn: Turn, text: str, tools: list[str], started: float, usage: Any = None) -> None:
+    """One line per turn beside the project: what was asked, which tools ran, how long it took. For audits; never shown."""
+    try:
+        row = {"at": round(time.time()), "asked": text[:200], "tools": tools, "seconds": round(time.time() - started, 1)}
+        if usage is not None:
+            row["tokens_in"], row["tokens_out"] = getattr(usage, "input_tokens", None), getattr(usage, "output_tokens", None)
+        with (turn.store.dir / "turns.jsonl").open("a") as fh:
+            fh.write(json.dumps(row) + "\n")
+    except Exception:
+        pass
+
 def run_openai(turn: Turn, text: str) -> str:
     """The same loop on an OpenAI model (Responses API): same system prompt, same tools, same events."""
     from openai import OpenAI
@@ -1813,9 +1852,9 @@ def run_openai(turn: Turn, text: str) -> str:
     tools = [{"type": "function", "name": t["name"], "description": t["description"], "parameters": t["input_schema"], "strict": False}
              for t in TOOLS]
     f = turn.store.dir / "messages.openai.json"
-    items = json.loads(f.read_text()) if f.exists() else []
+    items = trim_history(json.loads(f.read_text())) if f.exists() else []
     items.append({"role": "user", "content": text + "\n\n" + state_block(turn)})
-    said = []
+    said, ran, started, usage = [], [], time.time(), None
     for _ in range(24):
         if turn.stop.is_set():
             break
@@ -1832,6 +1871,7 @@ def run_openai(turn: Turn, text: str) -> str:
                 break
         if resp is None:
             break
+        usage = getattr(resp, "usage", None) or usage
         items += [it.model_dump(exclude_none=True) for it in resp.output]      # reasoning and calls go back unchanged
         calls = [it for it in resp.output if it.type == "function_call"]
         if not calls or resp.status != "completed":
@@ -1848,6 +1888,7 @@ def run_openai(turn: Turn, text: str) -> str:
             sid = new_id("s")
             turn.emit({"type": "step", "id": sid, "name": c.name, "label": TOOL_BY_NAME.get(c.name, {}).get("label", c.name), "state": "run"})
             out, err = run_tool(turn, c.name, args)
+            ran.append(c.name + ("!" if err else ""))
             turn.emit({"type": "step", "id": sid, "state": "fail" if err else "ok",
                        "detail": plain(out) if err else None})
             if isinstance(out, list):                          # frames: shown to the model in the next message
@@ -1861,6 +1902,7 @@ def run_openai(turn: Turn, text: str) -> str:
         if all(c.name == "suggest" for c in calls) and any(it.type == "message" for it in resp.output):
             break                                              # the reply is written and the buttons are up: done
     f.write_text(json.dumps(items))
+    log_turn(turn, text, ran, started, usage)
     return "".join(said).strip()
 
 def run_offline(turn: Turn, text: str) -> str:
@@ -2470,8 +2512,10 @@ async def chat(req: Request, x_ember_user: str | None = Header(None)):
             turn.preapproved = 0.0
         s.add_log({"role": "user", "text": text, "at": time.time()})
         said = {"claude": run_claude, "openai": run_openai}.get(brain(), run_offline)(turn, text)
-        if (not getattr(turn, "suggested", False) and str(said or "").rstrip().endswith("?")
-                and re.search(r"\bchoose\b", said, re.I) and re.search(r"\bpick\b", said, re.I)):
+        asked = next((q for q in re.findall(r"[^.!?\n]*\?", str(said or "")) if re.search(r"\bproduct", q, re.I)
+                      and re.search(r"\b(choose|pick|select|which|find)\b", q, re.I)), None)   # the question may be followed by another sentence
+        if (not getattr(turn, "suggested", False) and asked
+                and not any(a.get("reference") for a in s.load()["assets"].values())):
             turn.emit({"type": "suggest", "options": [                # the question was asked without its two buttons
                 {"label": "Pick for me", "say": "Pick a product for me and set the video up."},
                 {"label": "Let me choose", "say": "Show me what is selling so I can choose."}]})

@@ -141,6 +141,21 @@ a moment later, beside the project on the server (`board.json`, through `/api/bo
 newer of the two wins, so the board is there in another browser or after the browser's storage is
 cleared. The project (files, the cut, captions) is saved on the server.
 
+## Ember's loop (the harness)
+
+- One model, one loop, the tools in `TOOLS`. Each message carries the studio state and the board.
+- What Ember re-reads of earlier turns is trimmed (`trim_history`): only the newest message carries
+  a studio state, old pictures and long tool results are cut down, and the last ten turns are kept.
+  Cuts fall on the person's messages, so a call always stays with its result.
+- Rules that matter are enforced in code as well as in the instructions: no render without an
+  approved price, nothing films or re-plans while the board says a render is running, the two choice
+  buttons appear even if the model forgets them, and a failed step is worded plainly.
+- Every turn adds a line to `turns.jsonl` beside the project (what was asked, the tools that ran,
+  seconds, tokens). It is for audits and is never shown.
+- Behaviour checks: `python3 server/tests/ember_eval.py` against a second server on port 4181. Nine
+  quick checks; `--slow` adds five that search, import and listen to real Shop videos. They use the
+  model key and never render. Run them after changing the instructions or a tool.
+
 ## Testing without spending
 
 - The smoke test: start a second server (`EMBER_PORT=4181 uv run server/ember.py`), then
