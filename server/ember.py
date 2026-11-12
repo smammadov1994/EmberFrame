@@ -2228,6 +2228,10 @@ async def action(req: Request, x_ember_user: str | None = Header(None)):
     body = await req.json()
     name = body.get("name")
     if name not in ("remove_silences", "auto_captions", "shop_import", "shop_search", "render", "transcribe") and name not in FLOW:
+        try:                                                # an approval card that outlived its turn: pressing its priced button pays for one render
+            turn.preapproved = max(0.0, min(float(body.get("approved") or 0), round(15.0 * RATE, 2)))
+        except (TypeError, ValueError):
+            turn.preapproved = 0.0
         raise HTTPException(400, "Unknown action.")
     s = store_for(x_ember_user)
     if name in FLOW:                                         # the guided flow's own steps

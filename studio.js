@@ -702,7 +702,10 @@
       el('div', {}, ev.lines.map(function (l) { return el('p', { text: l }); })),
       ev.cost !== null && ev.cost !== undefined ? el('div', { class: 'cost' }, ['$' + Number(ev.cost).toFixed(2), el('small', { text: 'nothing renders until you approve' })]) : null
     ]);
+    $$('.stp.run .lb', log).forEach(function (l) { l._was = l.textContent; l.textContent = 'Waiting for your OK'; });   // nothing is rendering yet
+    card._ev = ev; card._open = true;
     var answer = function (allow) {
+      card._open = false; $$('.stp.run .lb', log).forEach(function (l) { if (l._was) l.textContent = l._was; });
       card.classList.add('done'); row.remove();
       card.appendChild(el('p', { text: allow ? 'Approved.' : 'Not now.' }));
       api('/api/approve', { method: 'POST', body: { id: ev.id, allow: allow } }).catch(function () {});
@@ -711,7 +714,20 @@
       el('button', { type: 'button', class: 'btn btn-accent', text: 'Approve', onclick: function () { answer(true); } }),
       el('button', { type: 'button', class: 'btn', text: 'Not now', onclick: function () { answer(false); } })
     ]);
-    card.appendChild(row); log.appendChild(card); scrollLog();
+    card._row = row; card.appendChild(row); log.appendChild(card); scrollLog();
+  }
+  function expire(card) {                                     // the turn ended with this card unanswered: it must not sit there as a dead button
+    var ev = card._ev, cost = ev.cost !== null && ev.cost !== undefined ? Number(ev.cost) : null;
+    card._open = false; if (card._row) card._row.remove();
+    $('.tg', card).textContent = 'Still waiting on you';
+    var row = el('div', { class: 'row' }, [
+      el('button', { type: 'button', class: 'btn btn-accent', text: cost !== null ? 'Approve · $' + cost.toFixed(2) : 'Go ahead', onclick: function () {
+        if (busy) return; card.classList.add('done'); row.remove(); card.appendChild(el('p', { text: 'Approved.' }));
+        send('Approved. Go ahead: ' + ev.title.toLowerCase() + ', exactly as you proposed.', cost);
+      } }),
+      el('button', { type: 'button', class: 'btn', text: 'Not now', onclick: function () { card.classList.add('done'); row.remove(); card.appendChild(el('p', { text: 'Not now.' })); } })
+    ]);
+    card._row = row; card.appendChild(row);
   }
   function endTurn() {
     if (msgEl) msgEl.classList.remove('live');
@@ -724,6 +740,7 @@
       }
     });
     setBusy(false);
+    $$('.ask', log).forEach(function (c) { if (c._open) expire(c); });
     Object.keys(acting).forEach(actOff);
     if (nextEl) log.appendChild(nextEl);                      // next steps stay under everything else
     mood('happy'); clearTimeout(happyTimer); happyTimer = setTimeout(function () { if (!busy) mood(null); }, 1300);
@@ -756,7 +773,7 @@
       return pump();
     }).catch(function (e) { turnFailed = true; bubble('err', e.message || 'The connection dropped.'); }).then(endTurn);
   }
-  function send(text) {
+  function send(text, approved) {                             // approved: a price the person just agreed to by pressing a priced button
     text = (text || '').trim();
     if (!text || busy || !P) return;
     bubble('you', text);
@@ -765,7 +782,7 @@
     if (isBrowse() && text.length < 90 && /\b(back|return|go|take me|bring me)\b.{0,30}\beditor\b|\b(see|show|open)\b.{0,16}\beditor\b|\bclose (this|that|it|the (view|canvas|videos|grid))\b/i.test(text)) closeBrowse();
     clearTimeout(saveTimer);                                 // make sure Ember sees the latest hand edits
     api('/api/project', { method: 'PUT', body: { tracks: P.tracks, name: P.name, aspect: P.aspect } }).catch(function () {})
-      .then(function () { saved('Saved'); return stream('/api/chat', { text: text, view: viewNow }); });
+      .then(function () { saved('Saved'); return stream('/api/chat', { text: text, view: viewNow, approved: typeof approved === 'number' && approved > 0 ? approved : undefined }); });
   }
   function runAction(name, args) { if (!busy) stream('/api/action', { name: name, args: args }); }
   $('#chat-form').addEventListener('submit', function (e) { e.preventDefault(); send(input.value); });
@@ -1396,6 +1413,7 @@
   /* ---------- what the guided flow (flow.js) may use ---------- */
   window.EmberStudio = { $: $, $$: $$, el: el, svg: svg, api: api, headers: headers, mascot: mascot, fmt: fmt, clamp: clamp, user: user,
     project: function () { return P; }, status: function () { return STATUS; }, setProject: setProject, setAvatar: setAvatar,
+    acting: function () { return busy; },
     bubble: bubble, showNext: showNext, seek: seek, projectId: projectId, newProject: newProject, quiet: quiet, send: send,
     onChange: function (fn) { changeListeners.push(fn); },
     ask: function (text) { input.value = text; input.focus(); input.setSelectionRange(text.length, text.length); },

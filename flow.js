@@ -99,6 +99,23 @@
   }
   /* ---------- media on the canvas, and the final video ---------- */
   function finalNode() { return G.nodes.filter(function (n) { return n.type === 'final'; })[0] || null; }
+  function holder(a) {                                        // the workflow step that already holds this file as its subject
+    var vid = a.meta && a.meta.video_id;
+    return G.nodes.filter(function (m) { var s = m.type !== 'media' && m.d.subject; return s && (s.asset === a.id || (s.kind === 'shop' && vid && String(s.id) === String(vid))); })[0] || null;
+  }
+  function adopt(a) {                                         // a selling video arrived (Ember fetched it, or it was imported) while step one was still empty: it is the subject
+    if (!a.reference || holder(a)) return false;
+    var n = G.nodes.filter(function (m) { return m.type === 'subject' && !m.d.subject; }).sort(function (x, y) { return (y.id === G.open) - (x.id === G.open); })[0];
+    if (!n) return false;
+    n.d.subject = { kind: 'reference', asset: a.id, title: (a.meta && a.meta.product) || a.name, poster: thumb(a), price: a.meta && a.meta.price };
+    changed(n); G.lead = n.id;
+    if (S.acting && S.acting()) {                             // Ember is doing this for them: the board shows its steps, and the picker gets out of the way
+      var p = P(), av = p.avatar && p.assets[p.avatar];
+      if (av && !outs(n.id).length) { var c = addNode('creator', n.x + NW + GAP, n.y, n.id); c.d.creator = { kind: 'avatar', asset: av.id, title: av.name, poster: av.url }; G.lead = c.id; }
+      if (G.open === n.id) G.open = null;
+    }
+    return true;
+  }
   function finalShown() {                                     // the final video only appears once there is something to put in it (or it was asked for)
     var fin = finalNode(), p = P(); if (!fin || !p) return false;
     if (G.open === fin.id || p.tracks.video.length || p.tracks.audio.length) return true;
@@ -135,7 +152,13 @@
     if (!G.known) { G.known = {}; Object.keys(p.assets).forEach(function (id) { G.known[id] = 1; }); }   // first time: the whole library does not flood the canvas
     Object.keys(p.assets).forEach(function (id) {             // anything new (Ember made it, you uploaded it) appears as a node
       if (G.known[id]) return; G.known[id] = 1;
-      if (p.assets[id].source !== 'product' && !mediaNode(id)) addMedia(id, fin.x - (NW + GAP), fin.y).d.auto = 1;
+      var a = p.assets[id];
+      if (a.source === 'product' || mediaNode(id) || adopt(a)) return;
+      var lead = a.source === 'generated' && G.lead && node(G.lead);   // a clip Ember filmed from the steps it filled in: it comes out of the last of them
+      if (lead && !outs(lead.id).length && !G.nodes.some(function (m) { return m.type === 'film' && m.d.film && m.d.film.state === 'run'; })) {
+        var made = addMedia(id, lead.x + NW + GAP, lead.y); G.wires.push({ from: lead.id, to: made.id }); G.lead = null; return;
+      }
+      addMedia(id, fin.x - (NW + GAP), fin.y).d.auto = 1;
     });
     G.nodes = G.nodes.filter(function (n) {                    // a file a workflow node already holds (the avatar picked in On camera, the selling video picked in The subject) is not also a loose node
       if (n.type !== 'media' || !n.d.auto || G.wires.some(function (w) { return w.from === n.id || w.to === n.id; }) || inCut(n.d.asset)) return true;
@@ -234,6 +257,8 @@
       sync(); n = mediaNode(asset) || addMedia(asset, target.x - NW - GAP, target.y);
       keep(); draw(); connect(n, target); return n;
     }
+    sync(); var a = P().assets[asset], h = a && !mediaNode(asset) && holder(a);
+    if (h) { keep(); draw(); if (G.guided) complete(h); else open(h.id); return h; }   // step one took it as its subject: carry on from there
     n = place(asset, cx, cy); begin(n); return n;
   }
 
