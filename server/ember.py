@@ -921,13 +921,14 @@ def product_row(pr: dict[str, Any]) -> dict[str, Any]:
     return out
 
 def t_shop_products(turn: Turn, query: str | None = None, sort: str = "units", min_commission: float | None = None, category: str | None = None,
-                    price_min: float | None = None, price_max: float | None = None, n: int = 20) -> dict[str, Any]:
+                    price_min: float | None = None, price_max: float | None = None, n: int = 20, seller_id: str | None = None) -> dict[str, Any]:
     """Search the product catalogue itself (not videos): what sells, what is growing, what pays the most commission."""
     order = {"units": "units_7d", "growth": "growth", "commission": "commission", "total": None}.get(sort, "units_7d")
     n = max(1, min(int(n or 20), 50))
     data = kaiyros_get("/v1/creator-discovery/products", {"q": (query or "").strip() or None, "sort": order, "limit": n,
                                                           "commission_min": min_commission, "category": category,
-                                                          "price_min": price_min, "price_max": price_max})
+                                                          "price_min": price_min, "price_max": price_max,
+                                                          "seller_id": re.sub(r"[^0-9A-Za-z_-]", "", str(seller_id or ""))[:40] or None})
     rows = [product_row(x) for x in (data.get("products") or [])][:n]
     with turn.store.lock:
         p = turn.project()
@@ -940,6 +941,67 @@ def t_shop_products(turn: Turn, query: str | None = None, sort: str = "units", m
             "products": [{k: r[k] for k in keys if r.get(k) not in (None, "", [])} for r in rows],
             "note": "These are products from the whole catalogue, ranked by the data service. A missing field means the service has no figure for it; do not fill it in. "
                     "To make a video for one, call shop_search with its product_id to get the videos that already sell it, then import the best one and lay the video out."}
+
+def _num(x: Any) -> float | None:
+    try:
+        return float(x)
+    except (TypeError, ValueError):
+        return None
+
+def brand_row(s: dict[str, Any]) -> dict[str, Any]:
+    """One brand (a TikTok Shop seller) as the data service measures it. A missing figure stays missing."""
+    m, ins, shop = s.get("metrics") or {}, s.get("insights") or {}, s.get("shop") or {}
+    com, av = ins.get("commission") or {}, ins.get("availability") or {}
+    units, before = _num(m.get("units_7d")), _num(m.get("units_prev_7d"))
+    lo, hi = _num(com.get("minimum_bps")), _num(com.get("maximum_bps"))
+    row = {"seller_id": str(s.get("id") or ""), "brand": str(s.get("name") or "")[:80], "categories": [str(c)[:40] for c in (s.get("categories") or [])][:3],
+           "units_7d": int(units) if units is not None else None, "units_week_before": int(before) if before is not None else None,
+           "units_change_pct": round((units - before) / before * 100) if units is not None and before else None,
+           "revenue_7d": round(_num(m.get("gmv_7d"))) if _num(m.get("gmv_7d")) else None,
+           "products": m.get("product_count"), "videos": m.get("video_count"), "creators": m.get("creator_count"),
+           "commission_pct": (f"{lo / 100:g}" if lo == hi else f"{lo / 100:g} to {hi / 100:g}") if lo is not None and hi is not None else None,
+           "products_out_of_stock": av.get("out_of_stock_products") or None,
+           "shop_rating": shop.get("rating"), "shop_followers": shop.get("followers")}
+    return {k: v for k, v in row.items() if v not in (None, "", [])}
+
+def t_shop_brands(turn: Turn, query: str | None = None, category: str | None = None, n: int = 15) -> dict[str, Any]:
+    """Brands and shops: who sold the most in the last 7 days, and how that compares with the week before."""
+    n = max(1, min(int(n or 15), 40))
+    q = (query or "").strip() or None
+    data = kaiyros_get("/v1/creator-discovery/sellers", {"q": q, "sort": "units_7d", "limit": n, "category": (category or "").strip() or None})
+    rows = [brand_row(x) for x in (data.get("sellers") or [])][:n]
+    return {"found": len(rows), "more": bool(data.get("next_cursor")), "brands": rows,
+            "note": "Ordered by units sold in the last 7 days. revenue_7d is the data service's estimate. A missing field means there is no figure; do not fill it in. "
+                    "To go further with one brand, call shop_products or shop_search with its seller_id."}
+
+def t_video_trend(turn: Turn, video_id: str) -> dict[str, Any]:
+    """How one Shop video's views have moved, day by day: is it still climbing or is it over?"""
+    vid = re.sub(r"[^0-9A-Za-z_-]", "", str(video_id or ""))[:40]
+    if not vid:
+        return {"error": "Give the id of a Shop video from shop_search."}
+    data = kaiyros_get(f"/v1/creator-discovery/videos/{vid}/views-history", {})
+    pts = [{"day": str(p.get("day"))[:10], "views": int(_num(p.get("views")) or 0), "likes": p.get("likes"), "shares": p.get("shares"), "saves": p.get("saves")}
+           for p in (data.get("points") or []) if isinstance(p, dict) and p.get("day")]
+    pts.sort(key=lambda p: p["day"])
+    if len(pts) < 2:
+        return {"video_id": vid, "days_tracked": len(pts), "points": pts, "note": "Not enough days have been recorded to say how this video is moving."}
+    gains = [{"day": b["day"], "gained": b["views"] - a["views"]} for a, b in zip(pts, pts[1:])]
+    return {"video_id": vid, "days_tracked": len(pts), "first_day": pts[0]["day"], "last_day": pts[-1]["day"], "views_now": pts[-1]["views"],
+            "gained_since_first_day": pts[-1]["views"] - pts[0]["views"], "gained_last_day": gains[-1]["gained"], "daily_gain": gains[-14:], "points": pts[-14:],
+            "note": "Views are rounded by the source, so small day-to-day gains can read as zero. Only these recorded days exist; say how many days you are judging from."}
+
+def t_shop_market(turn: Turn) -> dict[str, Any]:
+    """The catalogue as a whole: how big it is and which kinds of product have the most winning videos."""
+    d = kaiyros_get("/v1/creator-discovery/market", {})
+    wv = d.get("winning_videos") or {}
+    views = wv.get("views_by_group") or {}
+    groups = sorted(({"group": str(g).replace("_", " "), "winning_videos": c, "views": views.get(g)} for g, c in (wv.get("by_group") or {}).items()),
+                    key=lambda r: -(_num(r["views"]) or 0))
+    out = {"products": d.get("products"), "brands": d.get("brands"), "units_sold_7d": d.get("units_7d"), "units_7d_through": d.get("units_7d_through"),
+           "winning_videos": wv.get("total"), "winning_video_means_at_least_views": wv.get("views_floor"), "winning_video_views_total": wv.get("views_total"),
+           "by_group": groups, "as_of": str(wv.get("as_of") or "")[:10] or None,
+           "note": "These are the data service's own counts on that date, for use inside the studio. Quote them as they are, with the date; do not round them up or project them."}
+    return {k: v for k, v in out.items() if v not in (None, "", [])}
 
 def shop_row(v: dict[str, Any]) -> dict[str, Any]:
     """One Kaiyros Discover video as the studio keeps it: the video, how it is doing, and the product it sells
@@ -1000,12 +1062,14 @@ RANKS = {"revenue": "revenue_7d", "units": "units_7d", "growth": "sales_trend_pc
 
 def t_shop_search(turn: Turn, sort: str = "trending", query: str | None = None, n: int = 8, rank_by: str | None = None,
                   in_stock: bool = False, min_commission: float | None = None, max_videos_selling: int | None = None,
-                  max_price: float | None = None, category: str | None = None, product_id: str | None = None) -> dict[str, Any]:
+                  max_price: float | None = None, category: str | None = None, product_id: str | None = None,
+                  seller_id: str | None = None) -> dict[str, Any]:
     n = max(1, min(int(n), 1000))                           # the data service pages 100 at a time; a few hundred take seconds
     sort = sort if sort in ("top", "latest", "trending") else "trending"
     narrowing = bool(rank_by in RANKS or in_stock or min_commission or max_videos_selling or max_price or category)
-    if str(product_id or "").strip():                        # the videos that sell one product, most viewed first
-        data = kaiyros_get("/v1/creator-discovery/videos", {"product_id": str(product_id).strip(), "sort": "views", "limit": min(n, 100)})
+    if str(product_id or "").strip() or str(seller_id or "").strip():   # the videos that sell one product, or one brand's products, most viewed first
+        data = kaiyros_get("/v1/creator-discovery/videos", {"product_id": str(product_id or "").strip() or None, "seller_id": str(seller_id or "").strip() or None,
+                                                            "sort": "views", "limit": min(n, 100)})
         rows, used, got = [shop_row(v) for v in (data.get("videos") or [])], "top", n
         sort = "top"
     else:
@@ -1190,6 +1254,11 @@ def fetch_product_image(turn: Turn, p: dict[str, Any], row: dict[str, Any]) -> d
 def t_shop_import(turn: Turn, video_ids: list[str]) -> dict[str, Any]:
     """Bring selling videos into the library as references (structure only)."""
     p = turn.project()
+    if getattr(turn, "from_chat", False) and not any(a.get("reference") for a in p["assets"].values()):
+        asked = " ".join(str(e.get("text") or "") for e in turn.store.log()[-8:] if e.get("role") == "user")   # this message and the few before it
+        if not re.search(r"\b(pick|choose|chose|select|import|bring|grab|decide|whichever|best|top|trending|popular|selling|this one|that one|use (this|that|it|the))\b", asked, re.I):
+            return {"error": "They have not said whose choice the product is, so nothing was brought in. Ask one short question: do they want to choose the product, "
+                             "should you pick one, or is it their own idea with no Shop product? Offer those as buttons with suggest, then stop."}
     shop = p.get("shop")
     if not shop:
         raise ValueError("Search the Shop first.")
@@ -1651,14 +1720,29 @@ TOOLS: list[dict[str, Any]] = [
   "input_schema": {"type": "object", "properties": {"sort": {"type": "string", "enum": ["trending", "top", "latest"]}, "query": {"type": "string"},
      "rank_by": {"type": "string", "enum": ["revenue", "units", "growth", "commission", "momentum", "least_crowded"]}, "in_stock": {"type": "boolean"},
      "min_commission": {"type": "number"}, "max_videos_selling": {"type": "integer"}, "max_price": {"type": "number"}, "category": {"type": "string"},
-     "product_id": {"type": "string", "description": "List the videos that sell this one product (an id from shop_products or from a video), most viewed first."}, "n": {"type": "integer", "description": "How many, 1 to 300. Ask for 100 when the person wants to see or browse videos; thousands exist, so a query narrows better than a bigger number."}}}},
+     "product_id": {"type": "string", "description": "List the videos that sell this one product (an id from shop_products or from a video), most viewed first."},
+     "seller_id": {"type": "string", "description": "List the videos that sell one brand's products (a seller_id from shop_brands), most viewed first."}, "n": {"type": "integer", "description": "How many, 1 to 300. Ask for 100 when the person wants to see or browse videos; thousands exist, so a query narrows better than a bigger number."}}}},
  {"name": "shop_products", "fn": t_shop_products, "label": "Searching the product catalogue",
   "description": "Search the product catalogue itself, hundreds of thousands of TikTok Shop products, not only the ones with a popular video. Use it when the person asks what to sell, "
    "for products by sales, growth or commission, or for products in a price range or category. sort: 'units' (sold in the last 7 days), 'growth', 'commission' or 'total' (all-time units). "
    "min_commission is a percent. price_min and price_max are dollars. category is a category name such as 'Skincare'. Returns up to 50 products with price, 7-day units and revenue, "
    "growth, commission, rating, stock and how many videos and creators sell each.",
   "input_schema": {"type": "object", "properties": {"query": {"type": "string"}, "sort": {"type": "string", "enum": ["units", "growth", "commission", "total"]},
-    "min_commission": {"type": "number"}, "category": {"type": "string"}, "price_min": {"type": "number"}, "price_max": {"type": "number"}, "n": {"type": "integer"}}}},
+    "min_commission": {"type": "number"}, "category": {"type": "string"}, "price_min": {"type": "number"}, "price_max": {"type": "number"}, "n": {"type": "integer"},
+    "seller_id": {"type": "string", "description": "Only this brand's products (a seller_id from shop_brands)."}}}},
+ {"name": "shop_brands", "fn": t_shop_brands, "label": "Looking at brands",
+  "description": "Brands and shops on TikTok Shop, ordered by units sold in the last 7 days: units this week and the week before, estimated revenue, how many products, videos and creators, "
+   "the commission they pay, shop rating. Use it when the person asks which brands are winning, who sells the most of something, or who a product competes with. "
+   "query narrows to a kind of product or a brand name.",
+  "input_schema": {"type": "object", "properties": {"query": {"type": "string"}, "category": {"type": "string"}, "n": {"type": "integer"}}}},
+ {"name": "video_trend", "fn": t_video_trend, "label": "Checking how the video is moving",
+  "description": "Day-by-day views of one Shop video (an id from shop_search): is it still climbing or has it stopped? Use it before recommending a selling video to model a new one on, "
+   "or when the person asks whether a video is still working.",
+  "input_schema": {"type": "object", "properties": {"video_id": {"type": "string"}}, "required": ["video_id"]}},
+ {"name": "shop_market", "fn": t_shop_market, "label": "Reading the market",
+  "description": "The catalogue as a whole: products, brands, units sold in the last 7 days, and which kinds of product (skincare, apparel, tech gadgets, ...) have the most winning videos "
+   "and views. Use it when the person asks what niche to go into or how big something is.",
+  "input_schema": {"type": "object", "properties": {}}},
  {"name": "shop_import", "fn": t_shop_import, "label": "Bringing in the reference",
   "description": "Download videos from the last shop_search into the library as references, by id. A reference shows how a selling video is built; it can be watched, transcribed and looked at, but never exported.",
   "input_schema": {"type": "object", "properties": {"video_ids": {"type": "array", "items": {"type": "string"}}}, "required": ["video_ids"]}},
@@ -1790,7 +1874,7 @@ SYSTEM = """You are Ember, the editor and producer inside Emberframe, a studio w
 What you can do
 - Edit the final video: trim, split, cut ranges, reorder, captions, volume. Your edits show at once in the Final video node.
 - Clean up footage, write captions from the speech, listen to and look at any clip.
-- Search TikTok Shop for what is selling and bring selling videos in as references. Search the product catalogue too (shop_products): what sells, what is growing, what pays the most commission, in a price range or a category; then list the videos that sell one product (shop_search with product_id).
+- Search TikTok Shop for what is selling and bring selling videos in as references. Search the product catalogue too (shop_products): what sells, what is growing, what pays the most commission, in a price range or a category; then list the videos that sell one product (shop_search with product_id). Brands too (shop_brands): who sold the most this week and how that compares with the week before; then one brand's products or videos (seller_id). Whether one video is still climbing (video_trend), and the market as a whole by kind of product (shop_market). These read data only: they never start a video.
 - Film new clips on our GPUs, and record voice lines with the voice model.
 - Clip a selling video: film the person's own avatar presenting the same product, from a script you write.
 - Put the person's own voice on a video: record_voice opens a recorder in the studio and their take lands on the audio track.
@@ -1813,7 +1897,7 @@ How to work
 - Every turn ends with a suggest call. After you have written your reply, call suggest in the same response with two or three next steps: usually the fix you just offered, the natural next step toward posting, and one bolder idea. Make them specific to this cut and this moment (name the clip, the product, the number), never generic. The person taps one and the conversation keeps moving; a reply with no buttons leaves them to think of the next step alone. Skip it only when you asked the person a question.
 - Never leave the person at "I can't". When a rule or a limit stops the exact thing they asked for, say so in one short sentence, then get them what they were after another way, and start on it in the same turn.
 - Clipping is the main thing people come here to do. A clip is a selling video made again as theirs: their avatar on camera presenting the same product, filmed new, in new words. Whenever a selling video is in play (they picked one, imported a reference, or say "use this clip", "use the same clip", "make my version", "put me in it", "add my voice to it", "clip it"), that is what they mean. Do not answer with what cannot be done to the other creator's file. If they have not asked yet, offer it by name in one line: "Want me to clip this with your avatar?" If they have asked, or say yes, make it:
-  0. Whose choice is the product? If they asked for a video without naming a product or a selling video, and no selling video is in the library yet, do not pick silently. Ask one short question ("Do you want to choose the product, or should I pick one for you?") and call suggest with these buttons: "Pick for me" (say: "Pick a product for me and set the video up."), "Let me choose" (say: "Show me what is selling so I can choose.") and, unless they said it is a TikTok Shop product, a third: "No product, my idea" (say: "No Shop product. Make it from my description."). Then stop and wait. On "No product, my idea": call plan_video with their words as the idea, and no Shop search. On "Let me choose": search and open the videos for them to pick. On "Pick for me": search, choose the one that fits them best, and import it with shop_import. Choose like a seller would: in stock, selling now (revenue_7d or units_7d high, sales_trend_pct not falling), not already crowded (fewer videos_selling and creators_selling for its sales is better), and for an affiliate a higher commission_pct. Never pick one the data shows as out of stock.
+  0. Whose choice is the product? If they asked for a video without naming a product or a selling video, and no selling video is in the library yet, do not pick silently. A kind of product ("a cordless vacuum", "skincare") is not a named product: the choice is still theirs. Ask one short question ("Do you want to choose the product, or should I pick one for you?") and call suggest with these buttons: "Pick for me" (say: "Pick a product for me and set the video up."), "Let me choose" (say: "Show me what is selling so I can choose.") and, unless they said it is a TikTok Shop product, a third: "No product, my idea" (say: "No Shop product. Make it from my description."). Then stop and wait. On "No product, my idea": call plan_video with their words as the idea, and no Shop search. On "Let me choose": search and open the videos for them to pick. On "Pick for me": search, choose the one that fits them best, and import it with shop_import. Choose like a seller would: in stock, selling now (revenue_7d or units_7d high, sales_trend_pct not falling), not already crowded (fewer videos_selling and creators_selling for its sales is better), and for an affiliate a higher commission_pct. Never pick one the data shows as out of stock.
   1. Know the video and the product. Read the reference's transcript and look at a few frames if you have not. The product, its price and its 7-day sales are in the Shop result and on the reference in the studio state.
   2. Lay it out with plan_video. Do not write the script yourself and do not call generate_clip for this. plan_video puts every step on the canvas, filled in with your choices: the subject, who is on camera, the kind of video and its length, the script, the voice, and Film with its price. The script is written there from the product facts (the reference's beats, every word new, facts only, no claim that the presenter used it). Pass subject_asset (the selling video), creator 'avatar' when one is saved, make 'clip' unless they asked for another kind, and seconds 8 unless they said a length.
   3. Then tell them, in two or three short sentences: which product you chose and the one reason why (a number from the listing belongs here), which picture is on camera (name the avatar file), the kind of video and its length, and that every step is on the canvas to click and change before anything is filmed. Nothing renders and nothing is charged until they press Film there. A video they only describe in words, with no product ("a video about a dinosaur"), is laid out the same way and never rendered from the chat: plan_video with idea and creator 'ask', so they still choose who is on camera, the style, the script and the voice on the canvas; skip the product question for it. When they ask for a commercial, an advert, or for it to look cinematic, lay it out with make 'commercial' and creator 'none' (several cinematic shots cut together, nobody speaks), unless they asked to be in it; say that it is several shots and that each is filmed on its own. generate_clip is only for when they tell you in so many words to render right now without the steps, or for one extra shot inside a video that already has its steps; then brief it like a director, with reference_images set to the AVATAR and the product's photo.
@@ -2666,6 +2750,7 @@ async def chat(req: Request, x_ember_user: str | None = Header(None)):
     def go(turn: Turn):
         turn.view = "browse" if body.get("view") == "browse" else "editor"
         turn.board = str(body.get("board") or "")[:6000]     # read only: it tells Ember what is already chosen
+        turn.from_chat = True                                # a tool call here is Ember's doing, not a click by the person
         try:                                                # an approval card that outlived its turn: pressing its priced button pays for one render
             turn.preapproved = max(0.0, min(float(body.get("approved") or 0), round(15.0 * RATE, 2)))
         except (TypeError, ValueError):

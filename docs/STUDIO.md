@@ -140,10 +140,24 @@ The product catalogue is read too, straight from Kaiyros with the same sign-in (
   waiting, a click uses the product for step 1, with its most viewed video to work from (or the
   listing alone when no video sells it yet).
 
-Kaiyros has more that the studio does not read yet: sellers (brands) and creators lists, a market
-view (how many products and brands, units sold in 7 days), a video's views history, and a written
-hook and summary per video (empty in today's data). Showing Kaiyros data outside this studio needs
-the owner's permission first.
+Ember reads three more things, for answers only (none of them starts a video):
+
+- `shop_brands`: brands and shops by units sold in 7 days, with the week before, estimated revenue,
+  products, videos, creators, commission and shop rating. `seller_id` then narrows `shop_products`
+  and `shop_search` to one brand.
+- `video_trend`: one video's recorded daily views, to tell whether it is still climbing. The source
+  rounds views and keeps only the days it recorded.
+- `shop_market`: products, brands and units sold in 7 days across the catalogue, and which kinds of
+  product have the most winning videos and views.
+
+Not read: the creators list (its order and its product and brand filters did not respond when tried
+on 12 November 2026, and its sales figures were months old) and the written hook and summary per
+video (empty in today's data). Showing Kaiyros data outside this studio needs the owner's permission
+first.
+
+Ember may bring a Shop video in by itself only after the person has handed it the choice ("pick for
+me", "the best one", "use that one"). Naming a kind of product is not enough: `shop_import` refuses
+and Ember asks, with "Pick for me", "Let me choose" and "No product, my idea".
 
 ## Hard rules (from AGENTS.md)
 

@@ -54,6 +54,15 @@ are in [STUDIO.md](STUDIO.md).
   on Commercial instead of a single shot. "My own idea" now says it films one continuous shot.
 - When Ember asks whose choice the product is, there is a third button: "No product, my idea".
 
+**More Shop data for Ember**
+- Brands: who sold the most this week against the week before, with products, videos, creators,
+  commission and shop rating (`shop_brands`); then one brand's products or videos.
+- Whether one selling video is still climbing, from its recorded daily views (`video_trend`).
+- The market as a whole: products, brands, units in 7 days, and which kinds of product have the
+  most winning videos (`shop_market`).
+- Ember can no longer bring a Shop video in on its own when you only named a kind of product. It
+  asks whose choice it is first; the server refuses the import otherwise.
+
 **Shop data**
 - Every Shop video now carries its product's sales, revenue trend, reviews, stock, commission and how
   many videos and creators already sell it.

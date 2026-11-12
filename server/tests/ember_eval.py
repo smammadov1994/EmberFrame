@@ -82,7 +82,7 @@ check("a described video leaves who is on camera to the person", bool(r["workflo
 p = project("Eval: commercial")
 r = say(p, "make me a cinematic commercial for a cordless vacuum, nobody on camera")
 if not r["workflow"]:                                        # it may first ask whose choice the product is: the way out without a Shop product must be offered
-    check("a commercial with no product named: 'No product, my idea' is offered", any("idea" in b.lower() for b in r["buttons"]), [r["buttons"], r["said"]])
+    check("a commercial with no product named: 'No product, my idea' is offered", any(re.search(r"idea|no (shop )?product", b, re.I) for b in r["buttons"]), [r["buttons"], r["said"]])
     r = say(p, "No Shop product. Make it from my description.")
 check("a commercial is laid out as the Commercial format, not rendered", bool(r["workflow"]) and r["workflow"].get("make") == "commercial" and not r["approval"]
       and not (set(r["tools"]) & {"generate_clip", "shop_search", "shop_import"}), r)
@@ -140,6 +140,18 @@ if SLOW:
     r = say(p, "which products under $20 are selling the most right now? give me the top three with units sold.")
     check("a product question searches the catalogue", "shop_products" in r["tools"], r)
     check("the catalogue answer carries numbers and starts nothing", bool(re.search(r"\d{3,}", r["said"])) and not (set(r["tools"]) & (FILMS | {"plan_video"})), r["said"])
+
+if SLOW:
+    # 11. a brand question goes to the brand data
+    p = project("Eval: brands")
+    r = say(p, "which brands sold the most skincare this week? top three, with units.")
+    check("a brand question is looked up in the brand data", "shop_brands" in r["tools"], r)
+    check("the brand answer carries numbers and starts nothing", bool(re.search(r"\d{3,}", r["said"])) and not (set(r["tools"]) & (FILMS | {"plan_video", "shop_import"})) and not r["approval"], r["said"])
+
+    # 12. a niche question reads the market
+    p = project("Eval: market")
+    r = say(p, "what kind of product has the most winning videos right now?")
+    check("a niche question reads the market totals", "shop_market" in r["tools"] and not (set(r["tools"]) & (FILMS | {"plan_video"})), r)
 
 print("\n" + ("All checks passed." if not fails else f"{fails} check(s) failed."))
 sys.exit(fails)
