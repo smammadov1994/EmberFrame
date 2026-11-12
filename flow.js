@@ -142,6 +142,10 @@
   function claim() {                                          // a picture of a person wired into "Who is on camera" is the answer to it
     var p = P(), got = null;
     G.nodes.forEach(function (n) {
+      ['subject', 'voice'].forEach(function (k) {             // a step a file answered empties when that file is unwired
+        var v = n.type === k && n.d[k];
+        if (v && v.from && !ins(n.id).some(function (x) { return x.id === v.from; })) { n.d[k] = null; changed(n); }
+      });
       if (n.type !== 'creator') return;
       var c = n.d.creator;
       if (c && c.from && !ins(n.id).some(function (x) { return x.id === c.from && x.d.role === 'creator'; })) { n.d.creator = c = null; changed(n); }   // unwired, or it is the product after all
@@ -267,9 +271,19 @@
 
   function begin(n) {                                         // dropped on empty board and left unwired: the start of a new workflow
     if (outs(n.id).length) return void open(n.id);            // it already feeds something; just show it
-    var c = ctx(n.id), next = ORDER.filter(function (t) { return !c[t]; })[0];
-    if (!next) return void open(n.id);
-    keep(); open(addNode(next, n.x + NW + GAP, n.y, n.id).id);
+    var p = P(), a = p.assets[n.d.asset];
+    var go = function () {
+      var rules = may(n), next = ORDER.filter(function (t) { return !rules[t]; })[0];
+      if (!next) return void open(n.id);
+      keep(); open(addNode(next, n.x + NW + GAP, n.y, n.id).id);
+    };
+    if (a && a.kind === 'image' && a.id !== p.avatar && a.source !== 'product' && !n.d.as && !ins(n.id).length) {   // a picture can be either: ask, do not guess
+      open(n.id);
+      return void choose('What is this picture?', { x: n.x + NW + 30, y: n.y + NH / 2 }, [
+        { t: 'The person on camera', d: 'You, or a creator you have the rights to.', icon: I.person, hot: !p.avatar, on: function () { n.d.as = 'creator'; fill(n); go(); } },
+        { t: 'The product', d: 'What the video is about.', icon: I.bag, hot: !!p.avatar, on: function () { n.d.as = 'subject'; fill(n); go(); } }]);
+    }
+    go();
   }
   function dropped(asset, cx, cy, onto) {                     // a file or a rail item landed on the board
     var target = onto && node(onto), n;
@@ -320,14 +334,56 @@
     if (to) { G.wires.push({ from: n.id, to: to }); clear(node(to), true); changed(node(to)); }
     return n;
   }
+  /* ---------- the rules: what may follow what ---------- */
+  var IDX = {}; ORDER.forEach(function (t, i) { IDX[t] = i; });
+  function called(n) { var a = n.type === 'media' && P().assets[n.d.asset], s = n.type !== 'media' && summary(n); return String(a ? a.name : s ? s.t : T[n.type].title).slice(0, 40); }
+  function may(from) {                                        // every step, and why it cannot come next after `from` ('' when it can)
+    var c = from ? ctx(from.id) : {}, out = {};
+    ORDER.forEach(function (t) {
+      out[t] = from && from.type === 'final' ? 'Nothing follows the final video.'
+        : c[t] ? 'Already set: ' + called(c[t])
+        : !from && t !== 'subject' && t !== 'creator' ? 'Starts from a subject or a person.'
+        : (t === 'subject' || t === 'creator') && c.format ? 'Goes before "What to make".'
+        : t === 'format' && !c.subject ? 'Needs a subject first.'
+        : t === 'script' && !c.format ? 'Needs "What to make" first.'
+        : (t === 'voice' || t === 'film') && !c.script ? 'Needs the script first.'
+        : t === 'voice' && c.film ? 'Goes before filming.' : '';
+    });
+    return out;
+  }
+  function answers(a, b) {                                    // a file wired into the step it answers: a picture or clip is the subject, a picture is the person, a sound is the voice
+    var A = a.type === 'media' && P().assets[a.d.asset]; if (!A) return false;
+    return (b.type === 'subject' && A.kind !== 'audio' && a.d.role !== 'creator') || (b.type === 'creator' && A.kind === 'image') || (b.type === 'voice' && A.kind === 'audio');
+  }
+  function wireRule(a, b) {                                   // why this wire is not allowed ('' when it is)
+    if (a.type === 'final' || b.type === 'final') return '';  // link() speaks for the final video
+    if (b.type === 'media') return a.type === 'media' ? '' : 'A file is a starting point. Drag from the file into a step, not from a step into the file.';
+    if (answers(a, b)) return isDone(b) ? '"' + T[b.type].title + '" is already answered (' + called(b) + '). Change it in its panel, or delete that step first.' : '';
+    var ka = a.type === 'media' ? a.d.role : a.type;
+    if (IDX[ka] >= IDX[b.type] && !(ka === 'creator' && b.type === 'subject'))
+      return 'Steps run in order: ' + ORDER.map(function (t) { return T[t].title.toLowerCase(); }).join(', ') + '. That wire would go backwards.';
+    var ca = ctx(a.id), cb = ctx(b.id), dup = ORDER.filter(function (t) { return ca[t] && cb[t] && ca[t].id !== cb[t].id; })[0];
+    if (dup) return 'That step already has "' + T[dup].title.toLowerCase() + '" (' + called(cb[dup]) + '). Unwire it first.';
+    return '';
+  }
+  function take(a, b) {                                       // the step takes the file as its answer
+    var A = P().assets[a.d.asset];
+    if (b.type === 'subject') { if (A.kind === 'image') a.d.as = 'subject'; b.d.subject = { kind: A.reference ? 'reference' : 'asset', asset: A.id, title: (A.meta && A.meta.product) || A.name, poster: thumb(A), price: A.meta && A.meta.price, from: a.id }; }
+    else if (b.type === 'creator') a.d.as = 'creator';         // claim() fills the step from it
+    else b.d.voice = { kind: 'own', asset: A.id, title: 'My own voice', from: a.id };
+  }
+
   function connect(a, b) {
     if (a.id === b.id || G.wires.some(function (w) { return w.from === a.id && w.to === b.id; })) return;
     if (b.id === a.id || below(b.id).some(function (m) { return m.id === a.id; })) return void say('That would make a loop. A wire has to lead forward.');
+    var no = wireRule(a, b); if (no) return void say(no);
     if (link(a, b)) return;
+    if (answers(a, b)) take(a, b);
     G.wires.push({ from: a.id, to: b.id }); clear(b, true); changed(b);
     G.nodes.forEach(function (n) { if (n.type === 'media') fill(n); });
     var got = claim(); keep(); draw();
-    if (b.type === 'creator' && isDone(b) && b.d.creator.from === a.id) return void (G.guided ? complete(b) : open(b.id));   // the picture is who is on camera: carry on
+    var ans = b.type === 'creator' ? b.d.creator : b.type === 'subject' ? b.d.subject : b.type === 'voice' ? b.d.voice : null;
+    if (ans && ans.from === a.id) return void (G.guided ? complete(b) : open(b.id));   // the file answered that step: carry on
     if (got && G.guided) return void complete(got);
     renderPanel();
   }
@@ -561,7 +617,7 @@
       while (nx.type !== 'media' && nx.type !== 'final' && nx.type !== 'film' && isDone(nx) && outs(nx.id).length && hop++ < 12) nx = outs(nx.id)[0];
       return void open(nx.id);
     }
-    var c = ctx(n.id), next = ORDER.filter(function (t) { return !c[t]; })[0];
+    var rules = may(n), next = ORDER.filter(function (t) { return !rules[t]; })[0];
     if (!next || n.type === 'film' || n.type === 'media' || n.type === 'final') return void renderPanel();
     open(addNode(next, n.x + NW + GAP, n.y, n.id).id);
   }
@@ -576,11 +632,11 @@
     var quick = function (icon, t, d, on) { menuEl.appendChild(el('button', { type: 'button', class: 'hot', onclick: function () { hideMenu(); on(); } }, [el('span', { class: 'fn-ic', html: svg(icon) }), el('span', { class: 'tx' }, [el('b', { text: t }), el('span', { text: d })])])); };
     if (fa && fa.kind !== 'image' && !fa.reference && !inCut(fa.id)) quick(I.play, 'Add to the final video', 'It plays after what is already there.', function () { S.cut.add(fa.id); });
     if (fa && fa.kind === 'video' && P().avatar) quick(I.point, fa.reference ? 'Remake it with my avatar' : 'Film my avatar from this clip', 'A new script and a new shot.', function () { remake(from, avatarNode(from)); });
-    if (fa) next = 'format';
+    var rules = may(from); next = ORDER.filter(function (t) { return !rules[t]; })[0];
     ORDER.forEach(function (t) {
-      menuEl.appendChild(el('button', { type: 'button', class: t === next && from ? 'hot' : null, onclick: function () {
+      menuEl.appendChild(el('button', { type: 'button', class: t === next && from ? 'hot' : null, disabled: rules[t] ? '' : null, title: rules[t] || null, onclick: function () {
         hideMenu(); var n = addNode(t, at.x, at.y - NH / 2, from ? from.id : null); keep(); open(n.id);
-      } }, [el('span', { class: 'fn-ic', html: svg(T[t].icon) }), el('span', { class: 'tx' }, [el('b', { text: T[t].title }), el('span', { text: T[t].hint })]), t === next && from ? el('em', { text: 'Suggested' }) : null]));
+      } }, [el('span', { class: 'fn-ic', html: svg(T[t].icon) }), el('span', { class: 'tx' }, [el('b', { text: T[t].title }), el('span', { text: rules[t] || T[t].hint })]), t === next && from ? el('em', { text: 'Suggested' }) : null]));
     });
     menuEl.hidden = false;
     menuEl.style.left = clamp(at.x * V.k + V.x, 12, r.width - menuEl.offsetWidth - 12) + 'px';
