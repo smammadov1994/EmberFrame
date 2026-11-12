@@ -1413,7 +1413,22 @@
     var on = G.open && node(G.open);
     if (!on || on.type === 'media' || on.type === 'final') renderPanel();
   });
-  window.EmberFlow = { open: open0, close: close, place: place, dropped: dropped, lay: lay, fit: fit, shopClick: shopClick, describe: describe, dropHint: dropHint, guiding: function () { return !!current(); }, showFinal: function () { var fn = finalNode(); if (fn) open(fn.id); },
+  function boardText() {                                      // the steps as plain lines, for Ember: what is chosen, what is waiting
+    var cur = current(), p = P(), lines = [];
+    G.nodes.filter(function (n) { return n.type !== 'media' && n.type !== 'final'; }).sort(function (a, b) { return a.y - b.y || a.x - b.x; }).forEach(function (n) {
+      var sum = summary(n), d = n.d, more = '';
+      if (n.type === 'subject' && d.subject) more = d.subject.kind === 'shop' ? ' (TikTok Shop video id ' + d.subject.id + ', not imported yet)' : d.subject.asset ? ' (library file ' + d.subject.asset + ')' : ' (an idea, no product)';
+      if (n.type === 'creator' && d.creator && d.creator.asset) more = ' (picture ' + d.creator.asset + ')';
+      if (n.type === 'script' && d.script) more = ' Shot: ' + String(d.script.shot || '').slice(0, 160);
+      if (n.type === 'film' && d.film) more = d.film.state === 'run' ? ' (a render is running now)' : '';
+      lines.push('Step ' + (ORDER.indexOf(n.type) + 1) + ', ' + T[n.type].title + ': ' + (isDone(n) && sum ? sum.t + (sum.s ? ' · ' + sum.s : '') : d.via === 'chat' ? 'being typed by the person' : sum ? sum.t + ' (not confirmed)' : 'not answered yet') + more);
+    });
+    if (!lines.length) return '';
+    lines.push('Final video: ' + p.tracks.video.length + (p.tracks.video.length === 1 ? ' clip' : ' clips'));
+    lines.push(cur ? 'Waiting on the person: step ' + (ORDER.indexOf(cur.type) + 1) + ', ' + T[cur.type].title.toLowerCase() : 'No step is waiting.');
+    return lines.join('\n');
+  }
+  window.EmberFlow = { open: open0, close: close, place: place, dropped: dropped, lay: lay, fit: fit, shopClick: shopClick, describe: describe, boardText: boardText, dropHint: dropHint, guiding: function () { return !!current(); }, showFinal: function () { var fn = finalNode(); if (fn) open(fn.id); },
     working: function () { var on = !root.hidden && G.open && node(G.open); return !!on && on.type !== 'media' && on.type !== 'final' && !isDone(on); },   // a step is open and not finished
     refresh: function () { if (!root.hidden) { sync(); draw(); renderPanel(); } }, seen: function () { try { return !!localStorage.getItem(SEEN); } catch (e) { return true; } } };
 })();

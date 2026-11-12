@@ -77,6 +77,11 @@ either order; both come before "What to make".
   - `generate_clip` is only for "render it right now" or an extra shot in a video that already has
     its steps. It always shows a priced approval card first.
 - With no product named, Ember asks "choose the product, or should I pick?" with two buttons.
+- Every message carries the board's steps (what is chosen, what is waiting, whether a render is
+  running). Ember reads them, does not overwrite a choice it was not asked to change, and starts
+  nothing that films while a render is running.
+- Ember does only what was asked. It never starts a video, imports one or films because of
+  something it noticed; it offers that as a button instead.
 - A reply from Ember says which product it chose and why, and which picture is on camera.
 - Ember does not speak first while a step is open or before the video has a clip.
 - An approval card that outlived its turn (it waits ten minutes) stays usable: its button pays for
@@ -108,6 +113,12 @@ The board's graph is saved in the browser (`localStorage`, one per person and pr
 project (files, the cut, captions) is saved on the server.
 
 ## Testing without spending
+
+- The smoke test: start a second server (`EMBER_PORT=4181 uv run server/ember.py`), then
+  `python3 server/tests/smoke.py`. Twelve checks that spend nothing (served pages, projects, refusals,
+  stop, approvals, no render without an approved price, key and data files not served). Add `--model`
+  for two more that use the model key (script writing, and that a described video is not rendered
+  from chat).
 
 - A second server for tests: `EMBER_PORT=4181 uv run server/ember.py`. Send chat or actions to it
   with the headers `X-Ember-User` and `X-Ember-Project`.

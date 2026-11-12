@@ -887,7 +887,7 @@
     if (isBrowse() && text.length < 90 && /\b(back|return|go|take me|bring me)\b.{0,30}\beditor\b|\b(see|show|open)\b.{0,16}\beditor\b|\bclose (this|that|it|the (view|canvas|videos|grid))\b/i.test(text)) closeBrowse();
     clearTimeout(saveTimer);                                 // make sure Ember sees the latest hand edits
     api('/api/project', { method: 'PUT', body: { tracks: P.tracks, name: P.name, aspect: P.aspect } }).catch(function () {})
-      .then(function () { saved('Saved'); return stream('/api/chat', { text: text, view: viewNow, approved: typeof approved === 'number' && approved > 0 ? approved : undefined }); });
+      .then(function () { saved('Saved'); return stream('/api/chat', { text: text, view: viewNow, board: window.EmberFlow && window.EmberFlow.boardText ? window.EmberFlow.boardText() : '', approved: typeof approved === 'number' && approved > 0 ? approved : undefined }); });
   }
   function runAction(name, args) { if (!busy) stream('/api/action', { name: name, args: args }); }
   $('#chat-form').addEventListener('submit', function (e) { e.preventDefault(); send(input.value, undefined, true); });
