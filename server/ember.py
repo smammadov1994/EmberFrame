@@ -882,23 +882,64 @@ def shop_fetch(turn: Turn, sort: str, query: str | None, n: int, download: bool 
                            "It usually clears in a minute. A narrower search (a product type or a brand) answers faster.")
     raise RuntimeError("The Shop data service did not answer" + (f": {m.group(1)}" if m else "."))
 
+def shop_row(v: dict[str, Any]) -> dict[str, Any]:
+    """One Kaiyros Discover video as the studio keeps it: the video, how it is doing, and the product it sells
+    (price, sales, how sales are moving, how crowded it is, stock, commission, reviews)."""
+    pr, m = v.get("product") or {}, v.get("metrics") or {}
+    pm, rep, inv = pr.get("metrics") or {}, pr.get("report") or {}, pr.get("inventory") or {}
+    hist = [float(h.get("amount") or 0) for h in (rep.get("history") or []) if isinstance(h, dict)]
+    last, before = sum(hist[-7:]), sum(hist[-14:-7])
+    trend = round((last - before) / before * 100) if len(hist) >= 14 and before > 0 else None
+    pct = rep.get("tdv_commission_percent")
+    if pct is None and pr.get("commission_rate_bps"):
+        pct = round(float(pr["commission_rate_bps"]) / 100, 1)
+    path = [str(x) for x in (pr.get("category_path") or []) if x]
+    return {"id": str(v.get("id")), "title": (v.get("title") or "")[:140],
+            "creator": (v.get("creator") or {}).get("handle"), "views": m.get("views_total"),
+            "likes": m.get("likes_total"), "seconds": round((v.get("duration_ms") or 0) / 1000, 1),
+            "views_24h": m.get("views_delta_24h"), "saves": m.get("saves_total"), "shares": m.get("shares_total"),
+            "comments": m.get("comments_total"), "posted": str(v.get("posted_at") or "")[:10] or None,
+            "hashtags": [str(h)[:30] for h in ((v.get("taxonomy") or {}).get("hashtags") or [])][:6],
+            "product": (pr.get("title") or "")[:110] or None,
+            "price": (pr.get("price") or {}).get("current_amount"),
+            "price_was": (pr.get("price") or {}).get("original_amount"),
+            "units_7d": pm.get("units_in_range") or pm.get("units_7d"),
+            "revenue_7d": round(float(rep["amount"])) if rep.get("amount") else None,      # estimated by Kaiyros: units times the listed price
+            "sales_trend_pct": trend,                            # last 7 days of revenue against the 7 before
+            "sold_total": pm.get("sold_count"), "rating": pm.get("rating"), "reviews": pm.get("review_count"),
+            "videos_selling": pm.get("video_count"), "creators_selling": pm.get("creator_count"),
+            "stock": inv.get("status") if inv.get("status") in ("in_stock", "out_of_stock") else None,
+            "commission_pct": pct, "seller": (pr.get("seller") or {}).get("name"),
+            "category": path[-1] if path else None, "category_path": " > ".join(path)[:120] or None,
+            "image": pr.get("image_url") if str(pr.get("image_url") or "").startswith("https://") else None,
+            "poster": (v.get("media") or {}).get("poster_url"),
+            "url": (v.get("media") or {}).get("canonical_url")}
+
+def listing_facts(row: dict[str, Any]) -> list[str]:
+    """What the listing says about a product, as plain facts the writer may use. Nothing here is invented."""
+    f = []
+    if row.get("price"):
+        was = row.get("price_was")
+        f.append(f"Price: ${row['price']}" + (f" (listed at ${was} before)" if was and float(was) > float(row["price"]) else ""))
+    if row.get("rating"):
+        f.append(f"Rating on the listing: {row['rating']} out of 5" + (f" from {int(row['reviews']):,} reviews" if row.get("reviews") else ""))
+    if row.get("units_7d"):
+        f.append(f"Units sold in the last 7 days: {int(row['units_7d']):,}")
+    if row.get("sold_total"):
+        f.append(f"Units sold in total: {int(row['sold_total']):,}")
+    if row.get("seller"):
+        f.append(f"Sold by: {row['seller']}")
+    if row.get("category"):
+        f.append(f"Category: {row['category']}")
+    if row.get("stock") == "out_of_stock":
+        f.append("Stock: the listing shows it as out of stock right now, so do not tell people to buy it today")
+    return f
+
 def t_shop_search(turn: Turn, sort: str = "trending", query: str | None = None, n: int = 8) -> dict[str, Any]:
     n = max(1, min(int(n), 1000))                           # the data service pages 100 at a time; a few hundred take seconds
     sort = sort if sort in ("top", "latest", "trending") else "trending"
     res, used, got = shop_fetch(turn, sort, query, n)
-    rows = []
-    for v in json.loads(Path(res["videos_json"]).read_text()):
-        pr, m = v.get("product") or {}, v.get("metrics") or {}
-        rows.append({"id": str(v.get("id")), "title": (v.get("title") or "")[:140],
-                     "creator": (v.get("creator") or {}).get("handle"), "views": m.get("views_total"),
-                     "likes": m.get("likes_total"), "seconds": round((v.get("duration_ms") or 0) / 1000, 1),
-                     "product": (pr.get("title") or "")[:110] or None,
-                     "price": (pr.get("price") or {}).get("current_amount"),
-                     "units_7d": (pr.get("metrics") or {}).get("units_in_range") or (pr.get("metrics") or {}).get("units_7d"),
-                     "image": pr.get("image_url") if str(pr.get("image_url") or "").startswith("https://") else None,
-                     "rating": (pr.get("metrics") or {}).get("rating"),
-                     "poster": (v.get("media") or {}).get("poster_url"),
-                     "url": (v.get("media") or {}).get("canonical_url")})
+    rows = [shop_row(v) for v in json.loads(Path(res["videos_json"]).read_text())]
     if used != sort and sort == "top":
         rows.sort(key=lambda r: -(r["views"] or 0))             # asked for the most viewed: order what came back by views
     with turn.store.lock:
@@ -906,7 +947,12 @@ def t_shop_search(turn: Turn, sort: str = "trending", query: str | None = None, 
         p["shop"] = {"sort": used, "query": query, "n": got, "videos": rows, "more": len(rows) >= got}
         turn.commit(p, shop=True)
     seen = rows[:30]                                         # the person's grid gets every row; the model reads the first thirty
-    out: dict[str, Any] = {"found": len(rows), "videos": [{k: r[k] for k in ("id", "title", "creator", "views", "likes", "seconds", "product", "price", "units_7d")} for r in seen]}
+    keys = ("id", "title", "creator", "views", "views_24h", "likes", "seconds", "posted", "product", "price", "units_7d", "revenue_7d", "sales_trend_pct",
+            "rating", "reviews", "videos_selling", "creators_selling", "stock", "commission_pct", "category")
+    out: dict[str, Any] = {"found": len(rows), "videos": [{k: r[k] for k in keys if r.get(k) not in (None, "", [])} for r in seen],
+                           "fields": "views_24h: views gained in the last day. revenue_7d: dollars, estimated by the data service from units and the listed price. "
+                                     "sales_trend_pct: the last 7 days of revenue against the 7 before. videos_selling and creators_selling: how many videos and creators "
+                                     "already sell this product. commission_pct: what an affiliate earns per sale. stock: only shown when known."}
     if len(rows) > len(seen):
         out["rest"] = f"{len(rows) - len(seen)} more are in the person's Shop grid; a videos block shows all of them. Search again with a query to narrow down."
     if used != sort or got != n:
@@ -1649,7 +1695,7 @@ How to work
 - Every turn ends with a suggest call. After you have written your reply, call suggest in the same response with two or three next steps: usually the fix you just offered, the natural next step toward posting, and one bolder idea. Make them specific to this cut and this moment (name the clip, the product, the number), never generic. The person taps one and the conversation keeps moving; a reply with no buttons leaves them to think of the next step alone. Skip it only when you asked the person a question.
 - Never leave the person at "I can't". When a rule or a limit stops the exact thing they asked for, say so in one short sentence, then get them what they were after another way, and start on it in the same turn.
 - Clipping is the main thing people come here to do. A clip is a selling video made again as theirs: their avatar on camera presenting the same product, filmed new, in new words. Whenever a selling video is in play (they picked one, imported a reference, or say "use this clip", "use the same clip", "make my version", "put me in it", "add my voice to it", "clip it"), that is what they mean. Do not answer with what cannot be done to the other creator's file. If they have not asked yet, offer it by name in one line: "Want me to clip this with your avatar?" If they have asked, or say yes, make it:
-  0. Whose choice is the product? If they asked for a video without naming a product or a selling video, and no selling video is in the library yet, do not pick silently. Ask one short question ("Do you want to choose the product, or should I pick one for you?") and call suggest with exactly two buttons: "Pick for me" (say: "Pick a product for me and set the video up.") and "Let me choose" (say: "Show me what is selling so I can choose."). Then stop and wait. On "Let me choose": search and open the videos for them to pick. On "Pick for me": search, choose the one that fits them best, and import it with shop_import.
+  0. Whose choice is the product? If they asked for a video without naming a product or a selling video, and no selling video is in the library yet, do not pick silently. Ask one short question ("Do you want to choose the product, or should I pick one for you?") and call suggest with exactly two buttons: "Pick for me" (say: "Pick a product for me and set the video up.") and "Let me choose" (say: "Show me what is selling so I can choose."). Then stop and wait. On "Let me choose": search and open the videos for them to pick. On "Pick for me": search, choose the one that fits them best, and import it with shop_import. Choose like a seller would: in stock, selling now (revenue_7d or units_7d high, sales_trend_pct not falling), not already crowded (fewer videos_selling and creators_selling for its sales is better), and for an affiliate a higher commission_pct. Never pick one the data shows as out of stock.
   1. Know the video and the product. Read the reference's transcript and look at a few frames if you have not. The product, its price and its 7-day sales are in the Shop result and on the reference in the studio state.
   2. Lay it out with plan_video. Do not write the script yourself and do not call generate_clip for this. plan_video puts every step on the canvas, filled in with your choices: the subject, who is on camera, the kind of video and its length, the script, the voice, and Film with its price. The script is written there from the product facts (the reference's beats, every word new, facts only, no claim that the presenter used it). Pass subject_asset (the selling video), creator 'avatar' when one is saved, make 'clip' unless they asked for another kind, and seconds 8 unless they said a length.
   3. Then tell them, in two or three short sentences: which product you chose and the one reason why (a number from the listing belongs here), which picture is on camera (name the avatar file), the kind of video and its length, and that every step is on the canvas to click and change before anything is filmed. Nothing renders and nothing is charged until they press Film there. A video they only describe in words, with no product ("a video about a dinosaur"), is laid out the same way and never rendered from the chat: plan_video with idea and creator 'ask', so they still choose who is on camera, the style, the script and the voice on the canvas; skip the product question for it. generate_clip is only for when they tell you in so many words to render right now without the steps, or for one extra shot inside a video that already has its steps; then brief it like a director, with reference_images set to the AVATAR and the product's photo.
@@ -1929,15 +1975,14 @@ def flow_script(turn: Turn, args: dict[str, Any]) -> None:
         if not row and subj.get("title"):                    # the results have moved on since this was picked: work from what the step kept
             row = {"id": str(subj.get("id")), "title": subj.get("title"), "product": subj.get("title"), "price": subj.get("price"),
                    "units_7d": subj.get("units"), "creator": subj.get("creator"), "url": subj.get("url"), "image": subj.get("image"),
-                   "rating": subj.get("rating"), "poster": subj.get("poster")}
+                   "rating": subj.get("rating"), "poster": subj.get("poster"),
+                   **{k: (subj.get("more") or {}).get(k) for k in ("price_was", "reviews", "sold_total", "seller", "category", "stock")}}
         if not row:
             raise ValueError("That Shop video is no longer in your results. Search again and pick it.")
         done = flow_step(turn, "Pulling the product facts")
         product = row.get("product") or row.get("title") or "the product"
         facts.append(f"Product: {product}")
-        if row.get("price"): facts.append(f"Price: ${row['price']}")
-        if row.get("rating"): facts.append(f"Rating on the listing: {row['rating']} out of 5")
-        if row.get("units_7d"): facts.append(f"Units sold in the last 7 days: {row['units_7d']}")
+        facts += listing_facts(row)
         try:
             with turn.store.lock:
                 p = turn.project()

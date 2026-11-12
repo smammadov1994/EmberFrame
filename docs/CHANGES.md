@@ -33,6 +33,12 @@ are in [STUDIO.md](STUDIO.md).
 - Reads the board with every message: what is chosen, what is waiting, whether a render is running.
 - Does only what was asked; offers the rest as buttons.
 
+**Shop data**
+- Every Shop video now carries its product's sales, revenue trend, reviews, stock, commission and how
+  many videos and creators already sell it.
+- "Pick for me" uses that and says why. The script step lists the facts it was written from.
+- The rail can order results by Sales, and marks products that are out of stock.
+
 **Sturdier**
 - A render survives a page reload: the Film step keeps waiting and wires the clip in when it arrives.
 - The board is saved on the server as well as in the browser.

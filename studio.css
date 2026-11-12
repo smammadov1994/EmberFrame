@@ -793,6 +793,7 @@ body.chat-off .chat, body.chat-off .rz-chat { display: none; }
 .sv-sort { display: flex; gap: 2px; grid-column: 1 / -1; padding: 3px; border: 1px solid var(--hair); border-radius: 12px; background: var(--well); }
 .sv-sort button { flex: 1; min-width: 0; height: 28px; padding: 0 6px; border: 0; border-radius: 9px; background: transparent; color: var(--txt-3); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; transition: background 0.2s, color 0.2s; }
 .sv-sort button:hover { color: var(--txt); }
+.vcard .chip.out { background: rgba(120, 28, 14, 0.9); color: #FFD8CC; }   /* the listing is out of stock */
 .sv-sort button[aria-pressed=true] { background: rgba(255, 255, 255, 0.1); color: var(--txt); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset; }
 body.picking .lib { border-color: rgba(242, 90, 43, 0.5); box-shadow: 0 0 0 1px rgba(242, 90, 43, 0.2), 0 0 40px -18px rgba(242, 90, 43, 0.6); }
 body.picking .as.pickable { cursor: pointer; } body.picking .as.pickable:hover { outline: 2px solid var(--accent); outline-offset: 1px; }

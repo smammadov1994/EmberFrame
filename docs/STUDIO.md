@@ -89,6 +89,29 @@ either order; both come before "What to make".
 - An approval card that outlived its turn (it waits ten minutes) stays usable: its button pays for
   that one render.
 
+## Shop data (Kaiyros Discover)
+
+The studio reads one endpoint, `GET /v1/creator-discovery/videos`, through the model server's
+`kaiyros_discover`. `shop_row()` in `server/ember.py` keeps, for every video:
+
+| About | Fields |
+|---|---|
+| The video | views, views gained in the last day, likes, saves, shares, comments, length, date posted, hashtags |
+| The product | price and the price before a discount, units sold in 7 days and in total, estimated 7-day revenue, how sales moved against the week before, rating and number of reviews, seller, category |
+| The market | how many videos and creators already sell it, stock status, the affiliate commission |
+
+Where it is used:
+- The script writer gets the listing's facts (`listing_facts`), and the script step lists the facts
+  it was written from.
+- "Pick for me" chooses a product that is in stock, selling and not crowded, and says why.
+- The rail can order results by Sales; a product that is out of stock is marked.
+- Numbers are still shown to the person only when they ask for numbers.
+
+Kaiyros has more that the studio does not read yet: products, sellers and creators lists with
+filters (commission floor, category, price range), a market view, a video's views history, and a
+written hook and summary per video (empty in today's data). Showing Kaiyros data outside this
+studio needs the owner's permission first.
+
 ## Hard rules (from AGENTS.md)
 
 - All rendering runs on our own GPU through the model server. No GPU job starts without a press on

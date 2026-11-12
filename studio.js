@@ -124,7 +124,7 @@
   /* ---------- library ---------- */
   var ICON_AUDIO = svg('<path d="M4 10v4M8 6v12M12 9v6M16 4v16M20 10v4"/>', 24);
   /* ---------- picking for a step: the rail is where a step's choice is made ---------- */
-  var picking = null, pickTried = false, shopAsk = null;
+  var picking = null, pickTried = false, shopAsk = null, shopOrder = null;
   function pickFor(opts) {                                    // opts: { step, title, onShop(video), onAsset(asset), onChat() }; null ends it
     if (!opts && !picking) return;
     var was = !!picking; picking = opts || null;
@@ -205,11 +205,15 @@
     });
     var shop = $('#lib-shop'); shop.textContent = '';
     var vids = (P.shop && P.shop.videos) || [];
-    var sortNow = (P.shop && P.shop.sort) === 'top' ? 'top' : 'trending';
+    var sortNow = shopOrder === 'sales' ? 'sales' : (P.shop && P.shop.sort) === 'top' ? 'top' : 'trending';
+    if (shopOrder === 'sales') vids = vids.slice().sort(function (a, b) { return (b.revenue_7d || 0) - (a.revenue_7d || 0) || (b.units_7d || 0) - (a.units_7d || 0); });
     var sq = el('input', { type: 'search', class: 'sv-q', placeholder: 'Search TikTok Shop', value: shopAsk !== null ? shopAsk : (P.shop && P.shop.query) || '', 'aria-label': 'Search TikTok Shop' });
-    shop.appendChild(el('form', { class: 'sv-find', onsubmit: function (e) { e.preventDefault(); shopAsk = sq.value.trim(); shopSearch(shopAsk, sortNow, 100); } }, [sq, el('button', { type: 'submit', class: 'sv-go', 'aria-label': 'Search', title: 'Search', html: svg('<circle cx="9" cy="9" r="5"/><path d="M13 13l3.5 3.5"/>') })]));
-    shop.appendChild(el('div', { class: 'sv-sort' }, [['trending', 'Trending'], ['top', 'Most viewed']].map(function (o) {
-      return el('button', { type: 'button', 'aria-pressed': String(sortNow === o[0]), text: o[1], onclick: function () { shopAsk = sq.value.trim(); shopSearch(shopAsk, o[0], 100); } });
+    shop.appendChild(el('form', { class: 'sv-find', onsubmit: function (e) { e.preventDefault(); shopAsk = sq.value.trim(); shopSearch(shopAsk, sortNow === 'sales' ? 'trending' : sortNow, 100); } }, [sq, el('button', { type: 'submit', class: 'sv-go', 'aria-label': 'Search', title: 'Search', html: svg('<circle cx="9" cy="9" r="5"/><path d="M13 13l3.5 3.5"/>') })]));
+    shop.appendChild(el('div', { class: 'sv-sort' }, [['trending', 'Trending', 'Fastest growing'], ['top', 'Views', 'Most viewed'], ['sales', 'Sales', 'Best selling in the last 7 days, among these results']].map(function (o) {
+      return el('button', { type: 'button', 'aria-pressed': String(sortNow === o[0]), text: o[1], title: o[2], onclick: function () {
+        if (o[0] === 'sales') { shopOrder = 'sales'; return void drawLibrary(); }   // an order of what is already here: no new search
+        shopOrder = null; shopAsk = sq.value.trim(); shopSearch(shopAsk, o[0], 100);
+      } });
     })));
     if (shopBusy) shop.appendChild(el('p', { class: 'lib-empty', text: 'Searching TikTok Shop' }));
     else if (shopNote) shop.appendChild(el('p', { class: 'lib-empty', text: shopNote }));
@@ -228,7 +232,8 @@
         send('I pick this one: "' + (v.product || v.title || 'video').slice(0, 80) + '" by @' + (v.creator || 'creator') + ' (video id ' + v.id + ').');
       } }, [
         el('img', { src: v.poster || '', alt: '', loading: 'lazy' }),
-        el('span', { class: 'vtop' }, [el('span', { class: 'vchips' }, [el('span', { class: 'chip', text: n(v.views) + ' views' })])]),
+        el('span', { class: 'vtop' }, [el('span', { class: 'vchips' }, [el('span', { class: 'chip', text: n(v.views) + ' views' }),
+          v.stock === 'out_of_stock' ? el('span', { class: 'chip out', text: 'Out of stock' }) : null])]),
         el('span', { class: 'pick', text: picking ? 'Use this' : 'Work from this' }),
         el('span', { class: 'ov' }, [el('b', { text: v.product || v.title }), el('span', { text: (v.price ? '$' + v.price : '@' + (v.creator || 'creator')) + (v.units_7d ? ' · ' + n(v.units_7d) + ' sold' : '') })])
       ]);

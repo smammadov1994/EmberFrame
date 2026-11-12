@@ -195,7 +195,8 @@
     var n = G.nodes.filter(function (m) { return m.type === 'subject' && !m.d.subject; })[0];
     if (n) {                                                 // step one is still empty: this video is what the video is about
       delete n.d.via;
-      n.d.subject = { kind: 'shop', id: String(v.id), title: v.product || v.title || 'Video', poster: v.poster, price: v.price, units: v.units_7d, creator: v.creator, url: v.url, image: v.image, rating: v.rating };
+      n.d.subject = { kind: 'shop', id: String(v.id), title: v.product || v.title || 'Video', poster: v.poster, price: v.price, units: v.units_7d, creator: v.creator, url: v.url, image: v.image, rating: v.rating,
+        more: { price_was: v.price_was, reviews: v.reviews, sold_total: v.sold_total, seller: v.seller, category: v.category, stock: v.stock } };
       changed(n); S.pick(null);
       return void (G.guided ? complete(n) : open(n.id));
     }
@@ -1044,7 +1045,8 @@
     if (filming(n)) { S.pick(null); return void stop(null, 'This video is being filmed right now. Step 1 can be changed when the render ends.'); }
     var d = n.d, take = function (subj) { delete d.via; d.subject = subj; changed(n); S.pick(null); complete(n); };
     S.pick({ step: 'Step 1', title: T.subject.ask,
-      onShop: function (v) { take({ kind: 'shop', id: String(v.id), title: v.product || v.title || 'Video', poster: v.poster, price: v.price, units: v.units_7d, creator: v.creator, url: v.url, image: v.image, rating: v.rating }); },
+      onShop: function (v) { if (v.stock === 'out_of_stock') say('Heads up: the listing shows this product as out of stock right now.'); take({ kind: 'shop', id: String(v.id), title: v.product || v.title || 'Video', poster: v.poster, price: v.price, units: v.units_7d, creator: v.creator, url: v.url, image: v.image, rating: v.rating,
+        more: { price_was: v.price_was, reviews: v.reviews, sold_total: v.sold_total, seller: v.seller, category: v.category, stock: v.stock } }); },
       onAsset: function (a) {
         if (a.id === P().avatar) return void stop(n, 'That is your avatar. It comes in at step 2, who is on camera. Pick what the video is about first.');
         if (a.kind === 'audio') return void stop(n, 'A sound comes in at step 5, the voice. Pick a picture or a clip of what the video is about.');
@@ -1170,7 +1172,7 @@
         if (ev.state === 'run') steps.push({ id: ev.id, label: ev.label, state: 'run' });
         else steps.forEach(function (s) { if (s.id === ev.id) { s.state = ev.state; s.detail = ev.detail; } });
         if (G.open === n.id) renderPanel();
-      } else if (ev.type === 'flow_script') n.d.script = { line: ev.line, shot: ev.shot, name: ev.name, words: ev.words, product_asset: ev.product_asset, reference_asset: ev.reference_asset };
+      } else if (ev.type === 'flow_script') n.d.script = { line: ev.line, shot: ev.shot, name: ev.name, words: ev.words, product_asset: ev.product_asset, reference_asset: ev.reference_asset, facts: ev.facts || [] };
       else if (ev.type === 'error') scriptErr[n.id] = ev.message;
     }).catch(function () { scriptErr[n.id] = 'The connection dropped.'; }).then(function () {
       writing = null; if (!n.d.script && !scriptErr[n.id]) scriptErr[n.id] = 'The script was not written. Try again.';
@@ -1200,6 +1202,10 @@
     tally();
     box.appendChild(el('span', { class: 'f-lab' }, ['What is said', count])); box.appendChild(line);
     box.appendChild(el('span', { class: 'f-lab' }, ['The shot'])); box.appendChild(shot);
+    if (d.script.facts && d.script.facts.length) {            // what the writer was given: nothing in the script may go beyond this
+      box.appendChild(el('span', { class: 'f-lab' }, ['Facts it was written from']));
+      box.appendChild(el('ul', { class: 'f-facts' }, d.script.facts.map(function (x) { return el('li', { text: x }); })));
+    }
     box.appendChild(el('p', { class: 'f-note', text: 'Product facts only. The presenter never claims to have used it.' + (d.script.reference_asset ? ' The selling video was used for the order of its beats, not its words.' : '') }));
     box.appendChild(el('div', { class: 'f-foot' }, [
       el('button', { type: 'button', class: 'btn', text: 'Write it again', onclick: function () { writeScript(n); } }), el('span', { class: 'grow' }),

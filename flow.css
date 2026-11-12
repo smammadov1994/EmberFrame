@@ -106,6 +106,9 @@
 .flow-panel.in-rail .f-opt { min-height: 112px; padding: 14px; }
 .fp-body .btn { white-space: nowrap; } .fp-body .btn svg { width: 16px; height: 16px; flex: none; }   /* buttons keep one line and a small icon in the narrow rail */
 .fp-body .f-foot { row-gap: 8px; }
+.f-facts { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 5px; }
+.f-facts li { position: relative; padding-left: 14px; font-size: 13px; line-height: 1.4; color: var(--txt-2); }
+.f-facts li::before { content: ''; position: absolute; left: 2px; top: 8px; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); opacity: 0.8; }
 .flow-panel.in-rail .f-film { grid-template-columns: minmax(0, 150px) minmax(0, 1fr); gap: 16px; }   /* the Film panel in the rail: a smaller preview, the bill beside it */
 .flow-panel.in-rail .f-bill h3 { font-size: 19px; } .flow-panel.in-rail .f-bill .btn { width: 100%; justify-content: center; }
 .flow-toast { position: absolute; left: 50%; top: 18px; transform: translateX(-50%); z-index: 6; max-width: min(560px, calc(100% - 48px)); padding: 12px 16px; border-radius: 14px;
