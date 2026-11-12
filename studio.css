@@ -793,6 +793,10 @@ body.chat-off .chat, body.chat-off .rz-chat { display: none; }
 .sv-sort { display: flex; gap: 2px; grid-column: 1 / -1; padding: 3px; border: 1px solid var(--hair); border-radius: 12px; background: var(--well); }
 .sv-sort button { flex: 1; min-width: 0; height: 28px; padding: 0 6px; border: 0; border-radius: 9px; background: transparent; color: var(--txt-3); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; transition: background 0.2s, color 0.2s; }
 .sv-sort button:hover { color: var(--txt); }
+.sv-kind { background: transparent; border-color: transparent; padding: 0; gap: 4px; }   /* Videos or Products: the two things the Shop tab can show */
+.sv-kind button { height: 30px; border: 1px solid var(--hair); font-size: 13px; }
+.sv-kind button[aria-pressed=true] { border-color: rgba(242, 90, 43, 0.6); background: var(--accent-tint); color: var(--txt); }
+.lib-list.shop .vcard.pcard:nth-child(n) img { aspect-ratio: 1 / 1; object-fit: cover; }
 .vcard .chip.out { background: rgba(120, 28, 14, 0.9); color: #FFD8CC; }   /* the listing is out of stock */
 .sv-sort button[aria-pressed=true] { background: rgba(255, 255, 255, 0.1); color: var(--txt); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset; }
 body.picking .lib { border-color: rgba(242, 90, 43, 0.5); box-shadow: 0 0 0 1px rgba(242, 90, 43, 0.2), 0 0 40px -18px rgba(242, 90, 43, 0.6); }

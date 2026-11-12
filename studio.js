@@ -125,6 +125,53 @@
   var ICON_AUDIO = svg('<path d="M4 10v4M8 6v12M12 9v6M16 4v16M20 10v4"/>', 24);
   /* ---------- picking for a step: the rail is where a step's choice is made ---------- */
   var picking = null, pickTried = false, shopAsk = null, shopOrder = null;
+  var shopKind = 'videos', products = { rows: [], query: '', sort: 'units', busy: false, note: '', tried: false };   // the Shop tab shows videos, or the product catalogue
+  function loadProducts(query, sort) {
+    if (products.busy) return;
+    products.busy = true; products.tried = true; products.note = ''; products.query = query || ''; products.sort = sort || 'units'; drawLibrary();
+    quiet('shop_products', { query: products.query || null, sort: products.sort, n: 40 }, function (ev) {
+      if (ev.type === 'products') products.rows = ev.rows || [];
+      else if (ev.type === 'step' && ev.state === 'fail') products.note = String(ev.detail || 'The catalogue did not answer.');
+      else if (ev.type === 'error') products.note = ev.message;
+    }).catch(function () { products.note = 'The catalogue did not answer.'; }).then(function () { products.busy = false; drawLibrary(); });
+  }
+  function productClick(r) {                                  // a product: the videos that sell it, or (while step one is waiting) the product itself as the subject
+    if (products.busy || shopBusy) return;
+    products.busy = true; products.note = 'Finding the videos that sell it'; drawLibrary();
+    quiet('shop_search', { product_id: r.product_id, n: 24 }).catch(function () {}).then(function () {
+      products.busy = false; products.note = '';
+      var vids = (P.shop && P.shop.videos) || [], mine = vids.filter(function (v) { return String(v.product_id) === String(r.product_id); });
+      if (picking) {                                         // step one takes the product: its most viewed video to work from, or the listing alone
+        return void picking.onShop(mine[0] || { id: 'p' + r.product_id, product: r.product, title: r.product, price: r.price, units_7d: r.units_7d, poster: r.image, image: r.image,
+          rating: r.rating, price_was: r.price_was, reviews: r.reviews, sold_total: r.sold_total, seller: r.seller, category: r.category, stock: r.stock });
+      }
+      if (!mine.length) { products.note = 'No videos are selling that product yet.'; return void drawLibrary(); }
+      shopKind = 'videos'; shopOrder = null; shopAsk = ''; drawLibrary();
+    });
+  }
+  function drawProducts(shop) {
+    var st = products, num = function (x) { return x >= 1e6 ? (x / 1e6).toFixed(1).replace('.0', '') + 'M' : x >= 1e3 ? Math.round(x / 1e3) + 'K' : String(x || 0); };
+    var q = el('input', { type: 'search', class: 'sv-q', placeholder: 'Search products', value: st.query, 'aria-label': 'Search the product catalogue' });
+    shop.appendChild(el('form', { class: 'sv-find', onsubmit: function (e) { e.preventDefault(); loadProducts(q.value.trim(), st.sort); } },
+      [q, el('button', { type: 'submit', class: 'sv-go', 'aria-label': 'Search', title: 'Search', html: svg('<circle cx="9" cy="9" r="5"/><path d="M13 13l3.5 3.5"/>') })]));
+    shop.appendChild(el('div', { class: 'sv-sort' }, [['units', 'Selling', 'Most units in the last 7 days'], ['growth', 'Growing', 'Sales growing fastest'], ['commission', 'Commission', 'Highest commission']].map(function (o) {
+      return el('button', { type: 'button', 'aria-pressed': String(st.sort === o[0]), text: o[1], title: o[2], onclick: function () { loadProducts(q.value.trim(), o[0]); } });
+    })));
+    if (st.busy) shop.appendChild(el('p', { class: 'lib-empty', text: st.note || 'Searching the catalogue' }));
+    else if (st.note) shop.appendChild(el('p', { class: 'lib-empty', text: st.note }));
+    else if (!st.rows.length) shop.appendChild(el('p', { class: 'lib-empty', text: 'No products matched. Try another word.' }));
+    st.rows.forEach(function (r, k) {
+      var card = el('button', { type: 'button', class: 'vcard pcard', title: r.product, onclick: function () { productClick(r); } }, [
+        el('img', { src: r.image || '', alt: '', loading: 'lazy' }),
+        el('span', { class: 'vtop' }, [el('span', { class: 'vchips' }, [r.commission_pct ? el('span', { class: 'chip', text: r.commission_pct + '% commission' }) : null,
+          r.stock === 'out_of_stock' ? el('span', { class: 'chip out', text: 'Out of stock' }) : null])]),
+        el('span', { class: 'pick', text: picking ? 'Use this' : 'See its videos' }),
+        el('span', { class: 'ov' }, [el('b', { text: r.product }), el('span', { text: (r.price ? '$' + r.price : '') + (r.units_7d ? ' · ' + num(r.units_7d) + ' sold' : '') })]),
+        shopFacts(r, num)
+      ]);
+      card.style.setProperty('--k', Math.min(k, 12)); shop.appendChild(card);
+    });
+  }
   function pickFor(opts) {                                    // opts: { step, title, onShop(video), onAsset(asset), onChat() }; null ends it
     if (!opts && !picking) return;
     var was = !!picking; picking = opts || null;
@@ -163,7 +210,7 @@
     if (picking) {                                           // what the rail is being asked for, and the way out through chat
       box.parentNode.insertBefore(el('div', { class: 'lib-pick', id: 'lib-pick' }, [
         el('small', { text: picking.step || 'Step 1' }), el('b', { text: picking.title || 'Pick one' }),
-        el('p', { text: 'Pick a selling video in Shop, or one of your own files in Media.' }),
+        el('p', { text: 'Pick a selling video or a product in Shop, or one of your own files in Media.' }),
         el('button', { type: 'button', class: 'btn', html: svg('<path d="M4 5.5h12v8H9l-3.5 3v-3H4z"/>') + 'Chat about it instead', onclick: function () { if (picking) picking.onChat(); } })]), box);
     }
     var list = Object.keys(P.assets).map(function (k) { return P.assets[k]; }).reverse();
@@ -204,6 +251,12 @@
       box.appendChild(card);
     });
     var shop = $('#lib-shop'); shop.textContent = '';
+    shop.appendChild(el('div', { class: 'sv-sort sv-kind' }, [['videos', 'Videos'], ['products', 'Products']].map(function (o) {
+      return el('button', { type: 'button', 'aria-pressed': String(shopKind === o[0]), text: o[1], onclick: function () {
+        shopKind = o[0]; if (shopKind === 'products' && !products.tried) return void loadProducts('', 'units'); drawLibrary();
+      } });
+    })));
+    if (shopKind === 'products') { $('#shop-count').textContent = ((P.shop && P.shop.videos) || []).length ? String(P.shop.videos.length) : ''; return void drawProducts(shop); }
     var vids = (P.shop && P.shop.videos) || [];
     var sortNow = shopOrder === 'sales' ? 'sales' : (P.shop && P.shop.sort) === 'top' ? 'top' : 'trending';
     if (shopOrder === 'sales') vids = vids.slice().sort(function (a, b) { return (b.revenue_7d || 0) - (a.revenue_7d || 0) || (b.units_7d || 0) - (a.units_7d || 0); });

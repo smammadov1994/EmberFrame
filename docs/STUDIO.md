@@ -12,7 +12,7 @@ After a change to `server/ember.py` the server must be stopped and started again
 | Part | What it is |
 |---|---|
 | The board (canvas) | The whole right side, and the whole studio. Steps and files are nodes; whatever is wired into **Final video**, in order, is the video. |
-| The rail (left) | **Media** (your files) and **Shop** (TikTok Shop videos, with search and Trending / Most viewed). Step 1 is chosen here. |
+| The rail (left) | **Media** (your files) and **Shop** (TikTok Shop videos or products, with search and an order switch). Step 1 is chosen here. Pulled wider, each card shows the product's numbers. |
 | The message field (bottom centre) | The only place to type to Ember. Ember's face beside it shows or hides the chat session. |
 | The chat session (left, hidden until you talk) | The conversation with Ember: replies, steps, approval cards. |
 | The step panel (in the rail) | Steps 2 to 6, a file's details and Final video open in the left rail, over Media and Shop, and the rail widens. Close it (× or Esc) to get Media and Shop back. Step 1 uses Media and Shop themselves. On a phone it is a sheet at the bottom. |
@@ -121,6 +121,10 @@ The product catalogue is read too, straight from Kaiyros with the same sign-in (
 - `shop_search` with `product_id` lists the videos that sell one product, most viewed first.
 - So a person can ask "what sells under $25 with at least 15% commission", pick one, and have its
   best video imported and the video laid out.
+- The Shop tab has a **Videos | Products** switch. Products searches the catalogue with three orders
+  (Selling, Growing, Commission). A click shows the videos that sell that product; while step 1 is
+  waiting, a click uses the product for step 1, with its most viewed video to work from (or the
+  listing alone when no video sells it yet).
 
 Kaiyros has more that the studio does not read yet: sellers (brands) and creators lists, a market
 view (how many products and brands, units sold in 7 days), a video's views history, and a written

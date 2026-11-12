@@ -933,6 +933,7 @@ def t_shop_products(turn: Turn, query: str | None = None, sort: str = "units", m
         p = turn.project()
         p["products"] = {"query": query, "sort": sort, "rows": rows}
         turn.commit(p)
+    turn.emit({"type": "products", "query": query, "sort": sort, "rows": rows})   # the Shop tab's Products list
     keys = ("product_id", "product", "price", "units_7d", "revenue_7d", "sales_trend_pct", "commission_pct", "rating", "reviews", "videos_selling",
             "creators_selling", "stock", "seller", "category")
     return {"found": len(rows), "more": bool(data.get("next_cursor")),
@@ -2642,7 +2643,7 @@ async def action(req: Request, x_ember_user: str | None = Header(None)):
     """Buttons in the editor run the same tools Ember uses, without the model."""
     body = await req.json()
     name = body.get("name")
-    if name not in ("remove_silences", "auto_captions", "shop_import", "shop_search", "render", "transcribe") and name not in FLOW:
+    if name not in ("remove_silences", "auto_captions", "shop_import", "shop_search", "shop_products", "render", "transcribe") and name not in FLOW:
         raise HTTPException(400, "Unknown action.")
     s = store_for(x_ember_user)
     if name in FLOW:                                         # the guided flow's own steps
