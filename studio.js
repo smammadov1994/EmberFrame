@@ -880,6 +880,7 @@
   function scheduleReview(speak, ms) { clearTimeout(reviewTimer); reviewTimer = setTimeout(function () { if (!busy) refreshReview(speak); }, ms || 1600); }
   function notice() {
     if (busy || !P) return;
+    if (!P.tracks.video.length || (window.EmberFlow && window.EmberFlow.working())) return;   // no video yet, or a step is open: the workflow is leading, Ember waits to be asked
     var fresh = REVIEW.findings.filter(function (f) { return !seen[f.id]; });
     if (!fresh.length) return;
     fresh.forEach(function (f) { seen[f.id] = 1; });

@@ -164,6 +164,7 @@
 .f-opt { position: relative; display: flex; flex-direction: column; gap: 8px; padding: 16px; min-height: 132px; text-align: left; border: 1px solid var(--hair-2); border-radius: 16px; background: linear-gradient(180deg, #1C1B19, #151413); cursor: pointer; transition: border-color 0.2s, transform 0.3s var(--ease), box-shadow 0.3s; animation: rise 0.45s var(--ease) both; animation-delay: calc(var(--k, 0) * 60ms); }
 .f-opt svg { width: 24px; height: 24px; color: var(--accent-text); }
 .f-opt b { font-weight: 500; font-size: 16px; letter-spacing: -0.01em; } .f-opt span { font-size: 13.5px; line-height: 1.4; color: var(--txt-3); }
+.f-opt { min-width: 0; } .f-opt b, .f-opt span { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }   /* long names (a file name with no spaces) wrap inside the card */
 .f-opt .ph { width: 54px; height: 54px; border-radius: 50%; background: #1F1E1C center / cover; box-shadow: 0 0 0 2px var(--accent); }
 .f-opt:hover { border-color: rgba(242, 90, 43, 0.8); transform: translateY(-3px); box-shadow: 0 24px 46px -26px rgba(242, 90, 43, 0.6); }
 .f-opt[aria-pressed=true] { border-color: var(--accent); background: linear-gradient(180deg, rgba(242, 90, 43, 0.18), rgba(242, 90, 43, 0.05)); box-shadow: 0 0 0 3px rgba(242, 90, 43, 0.14); }

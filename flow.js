@@ -1040,5 +1040,6 @@
     if (!on || on.type === 'media' || on.type === 'final') renderPanel();
   });
   window.EmberFlow = { open: open0, close: close, place: place, dropped: dropped, fit: fit, showFinal: function () { var fn = finalNode(); if (fn) open(fn.id); },
+    working: function () { var on = !root.hidden && G.open && node(G.open); return !!on && on.type !== 'media' && on.type !== 'final' && !isDone(on); },   // a step is open and not finished
     refresh: function () { if (!root.hidden) { sync(); draw(); renderPanel(); } }, seen: function () { try { return !!localStorage.getItem(SEEN); } catch (e) { return true; } } };
 })();
