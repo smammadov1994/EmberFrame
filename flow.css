@@ -95,6 +95,12 @@
 .flow-panel { position: absolute; z-index: 7; right: 14px; top: 12px; bottom: 14px; width: min(540px, 46%); display: flex; flex-direction: column; border: 1px solid rgba(242, 90, 43, 0.45); border-radius: 20px; overflow: hidden; cursor: default;
   background: linear-gradient(180deg, var(--card-2), var(--card) 140px); box-shadow: 0 0 0 4px rgba(242, 90, 43, 0.08), 0 40px 90px -40px #000; animation: fp-in 0.45s cubic-bezier(0.3, 0.7, 0, 1) both; }
 .flow-panel[hidden] { display: none; }
+.flow-toast { position: absolute; left: 50%; top: 18px; transform: translateX(-50%); z-index: 6; max-width: min(560px, calc(100% - 48px)); padding: 12px 16px; border-radius: 14px;
+  border: 1px solid var(--accent); background: #1C1512; font-size: 14.5px; line-height: 1.4; box-shadow: 0 18px 50px -20px rgba(242, 90, 43, 0.7); animation: toast-in 0.25s ease-out; }
+.flow-toast[hidden] { display: none; }
+@keyframes toast-in { from { opacity: 0; transform: translate(-50%, -8px); } }
+.gn.nudge { animation: gn-nudge 0.45s ease-in-out 2; border-color: var(--accent); }
+@keyframes gn-nudge { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-7px); } 75% { transform: translateX(7px); } }
 .gn[hidden] { display: none; }
 @keyframes fp-in { from { opacity: 0; transform: translateX(30px); } }
 .fp-h { display: flex; align-items: center; gap: 12px; padding: 16px 14px 12px 18px; flex: none; }

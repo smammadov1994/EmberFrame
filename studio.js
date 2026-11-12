@@ -233,7 +233,8 @@
           var a = A(r.asset);
           if (where === 'cut' && a.kind !== 'image') { addAsset(r.asset, a.kind === 'audio' ? undefined : indexAt(at === undefined ? 1e9 : at), a.kind === 'audio' ? Math.max(0, at || 0) : undefined); n.textContent = 'Added ' + f.name + ' to the cut.'; }
           else if (where === 'canvas' && window.EmberFlow) {    // the first file starts a workflow (or wires into the node it landed on); the rest sit beside it
-            if (added.length === 1) window.EmberFlow.dropped(r.asset, at.x, at.y, at.onto); else window.EmberFlow.place(r.asset, at.x, at.y + (added.length - 1) * 150);
+            if (added.length === 1) window.EmberFlow.dropped(r.asset, at.x, at.y, at.onto);
+            else if (!window.EmberFlow.guiding()) window.EmberFlow.place(r.asset, at.x, at.y + (added.length - 1) * 150);   // guided: the rest wait in the media list
             n.textContent = 'Put ' + f.name + ' on the canvas.';
           }
           else n.textContent = 'Added ' + f.name + ' to the library.';
@@ -266,7 +267,7 @@
     if (!hasFiles(e) || !P) return;
     e.preventDefault(); e.dataTransfer.dropEffect = 'copy';
     var place = dropPlace(e), zone = place === 'canvas' ? $('#flow-view') : place === 'chat' ? $('.chat') : $('#lib');
-    $('#drop-text').textContent = place === 'canvas' ? 'Drop to put it on the canvas' : place === 'chat' ? 'Drop to give it to Ember' : 'Drop to add to your library';
+    $('#drop-text').textContent = place === 'canvas' ? (window.EmberFlow && window.EmberFlow.dropHint ? window.EmberFlow.dropHint() : 'Drop to put it on the canvas') : place === 'chat' ? 'Drop to give it to Ember' : 'Drop to add to your library';
     $$('.drop-here').forEach(function (n) { if (n !== zone) n.classList.remove('drop-here'); });
     zone.classList.add('drop-here');
   });

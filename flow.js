@@ -181,6 +181,7 @@
       if (lead && !outs(lead.id).length && !G.nodes.some(function (m) { return m.type === 'film' && m.d.film && m.d.film.state === 'run'; })) {
         var made = addMedia(id, lead.x + NW + GAP, lead.y); G.wires.push({ from: lead.id, to: made.id }); G.lead = null; return;
       }
+      if (current() && a.source !== 'generated' && a.source !== 'edited') return;   // guided, a step is waiting: a new file stays in the media list, not loose on the board
       addMedia(id, fin.x - (NW + GAP), fin.y).d.auto = 1;
     });
     G.nodes = G.nodes.filter(function (n) {                    // a file a workflow node already holds (the avatar picked in On camera, the selling video picked in The subject) is not also a loose node
@@ -285,14 +286,58 @@
     }
     go();
   }
+  /* ---------- guided: one step at a time ---------- */
+  var toast = el('div', { class: 'flow-toast', role: 'status', hidden: '' }), toastT = 0;
+  view.appendChild(toast);
+  function current() {                                        // guided: the step being worked on (open and unfinished, else the first unfinished)
+    if (!G.guided) return null;
+    var waiting = function (n) { return n && n.type !== 'media' && n.type !== 'final' && !isDone(n); }, on = G.open && node(G.open);
+    if (waiting(on)) return on;
+    return G.nodes.filter(waiting).sort(function (x, y) { return ORDER.indexOf(x.type) - ORDER.indexOf(y.type); })[0] || null;
+  }
+  function stop(n, text) {                                    // not now: say why, where they are looking, and point at the step that is waiting
+    if (n && G.open !== n.id) open(n.id);
+    say(text);
+    toast.textContent = text; toast.hidden = false;
+    clearTimeout(toastT); toastT = setTimeout(function () { toast.hidden = true; }, 6500);
+    var e = n && els[n.id];
+    if (e) { e.classList.remove('nudge'); void e.offsetWidth; e.classList.add('nudge'); setTimeout(function () { e.classList.remove('nudge'); }, 1300); }
+  }
+  function offer(asset) {                                     // guided: a file arrived while a step is waiting. The step takes it, or says where it belongs.
+    var cur = current(), p = P(), a = p.assets[asset]; if (!cur || !a) return false;
+    if (cur.type === 'subject') {
+      if (a.id === p.avatar) return stop(cur, 'That is your avatar. It comes in at step 2, who is on camera. First choose what the video is about.'), true;
+      if (a.kind === 'audio') return stop(cur, 'A sound comes in at step 5, the voice. First choose what the video is about.'), true;
+      cur.d.subject = { kind: a.reference ? 'reference' : 'asset', asset: a.id, title: (a.meta && a.meta.product) || a.name, poster: thumb(a), price: a.meta && a.meta.price };
+    } else if (cur.type === 'creator') {
+      if (a.kind !== 'image' || a.reference) return stop(cur, 'Step 2 needs a picture of the person on camera. ' + (a.kind === 'audio' ? 'A sound comes in at step 5, the voice.' : 'A clip cannot stand in for them.')), true;
+      cur.d.creator = { kind: 'avatar', asset: a.id, title: a.name, poster: a.url };
+    } else if (cur.type === 'voice') {
+      if (a.kind !== 'audio') return stop(cur, 'Step 5 takes a sound: a recording of the voice. Pictures and clips do not go here.'), true;
+      cur.d.voice = { kind: 'own', asset: a.id, title: 'My own voice' };
+    } else {
+      return stop(cur, 'Step ' + (ORDER.indexOf(cur.type) + 1) + ', ' + T[cur.type].title.toLowerCase() + ', does not take files. Finish it first. Your file is saved in your media.'), true;
+    }
+    toast.hidden = true; changed(cur); complete(cur);          // the step is answered: on to the next one
+    return true;
+  }
+  function dropHint() {                                       // what a drop on the board will do right now
+    var cur = current();
+    return !cur ? 'Drop to put it on the canvas'
+      : cur.type === 'subject' ? 'Drop it here: it becomes what the video is about'
+      : cur.type === 'creator' ? 'Drop a picture here: it becomes who is on camera'
+      : cur.type === 'voice' ? 'Drop a sound here: it becomes the voice'
+      : 'This step does not take files. It will be saved in your media';
+  }
   function dropped(asset, cx, cy, onto) {                     // a file or a rail item landed on the board
-    var target = onto && node(onto), n;
+    sync();
+    var a = P().assets[asset], h = a && !mediaNode(asset) && holder(a), target = onto && node(onto), n;
+    if (h) { keep(); draw(); if (G.guided) complete(h); else open(h.id); return h; }   // step one took it as its subject: carry on from there
+    if (a && current()) { offer(asset); keep(); return null; }   // guided, and a step is waiting: it decides
     if (target && !(target.type === 'media' && target.d.asset === asset)) {   // dropped onto a node: wire it into that node
-      sync(); n = mediaNode(asset) || addMedia(asset, target.x - NW - GAP, target.y);
+      n = mediaNode(asset) || addMedia(asset, target.x - NW - GAP, target.y);
       keep(); draw(); connect(n, target); return n;
     }
-    sync(); var a = P().assets[asset], h = a && !mediaNode(asset) && holder(a);
-    if (h) { keep(); draw(); if (G.guided) complete(h); else open(h.id); return h; }   // step one took it as its subject: carry on from there
     n = place(asset, cx, cy); begin(n); return n;
   }
 
@@ -661,6 +706,8 @@
     e.preventDefault();
     var hitNode = e.target.closest ? e.target.closest('.gn') : null, onto = hitNode ? hitNode.getAttribute('data-id') : null;
     if (asset && has(asset)) return void dropped(asset, e.clientX, e.clientY, onto);
+    var cur = current();
+    if (cur && cur.type !== 'subject') return void stop(cur, 'This video already has its subject. Click step 1 to change it, or press Start over for a new video.');
     var cx = e.clientX, cy = e.clientY;
     say('Bringing that selling video onto the canvas.');
     S.quiet('shop_import', { video_ids: [shop] }).catch(function () {}).then(function () {
@@ -1187,7 +1234,7 @@
     var on = G.open && node(G.open);
     if (!on || on.type === 'media' || on.type === 'final') renderPanel();
   });
-  window.EmberFlow = { open: open0, close: close, place: place, dropped: dropped, lay: lay, fit: fit, showFinal: function () { var fn = finalNode(); if (fn) open(fn.id); },
+  window.EmberFlow = { open: open0, close: close, place: place, dropped: dropped, lay: lay, fit: fit, dropHint: dropHint, guiding: function () { return !!current(); }, showFinal: function () { var fn = finalNode(); if (fn) open(fn.id); },
     working: function () { var on = !root.hidden && G.open && node(G.open); return !!on && on.type !== 'media' && on.type !== 'final' && !isDone(on); },   // a step is open and not finished
     refresh: function () { if (!root.hidden) { sync(); draw(); renderPanel(); } }, seen: function () { try { return !!localStorage.getItem(SEEN); } catch (e) { return true; } } };
 })();
