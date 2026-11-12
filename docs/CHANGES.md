@@ -50,6 +50,8 @@ are in [STUDIO.md](STUDIO.md).
 - A commercial that stops part way keeps the shots it filmed; trying again films and charges only
   the shots left.
 - Ask Ember for a commercial, an advert or something cinematic and it lays out this kind.
+- Type an idea that says commercial, advert or cinematic, with no one on camera, and step 3 opens
+  on Commercial instead of a single shot. "My own idea" now says it films one continuous shot.
 - When Ember asks whose choice the product is, there is a third button: "No product, my idea".
 
 **Shop data**

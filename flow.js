@@ -1138,7 +1138,10 @@
   function renderFormat(box, n) {
     var d = n.d, c = ctx(n.id), cr = c.creator && c.creator.d.creator, nobody = !cr || cr.kind === 'none', opts = el('div', { class: 'f-opts' }), sub = c.subject.d.subject;
     var ownClip = sub.kind === 'asset' && has(sub.asset) && P().assets[sub.asset].kind === 'video';   // their own footage can go straight to the editor
-    if (!d.make && sub.kind === 'idea') { d.make = 'free'; d.idea = d.idea || sub.text; }   // the video was described in words: that description is the shot, ready to edit
+    if (!d.make && sub.kind === 'idea') {                    // the video was described in words
+      if (nobody && /\b(commercial|advert|advertisement|ad|promo|cinematic)\b/i.test(sub.text || '')) d.make = 'commercial';   // they asked for an advert: several shots, not one
+      else { d.make = 'free'; d.idea = d.idea || sub.text; }   // otherwise that description is the shot, ready to edit
+    }
     if (!c.creator) box.appendChild(el('p', { class: 'f-note', text: 'No one on camera is connected, so this will be product only. Wire an "On camera" node into this one to put a person in it.' }));
     MAKES.forEach(function (m, k) {
       var off = m.person && nobody;
@@ -1164,6 +1167,7 @@
       area.value = d.idea || '';
       area.addEventListener('input', function () { d.idea = area.value; keep(); });
       box.appendChild(el('span', { class: 'f-lab' }, ['Describe the shot'])); box.appendChild(area);
+      box.appendChild(el('p', { class: 'f-note', text: 'This films one continuous shot.' + (nobody ? ' For an advert made of several shots, choose Commercial.' : '') }));
     }
     if (d.make === 'commercial') {
       box.appendChild(el('span', { class: 'f-lab' }, ['Shots', el('em', { html: '<b>' + money(priceOf(d)) + '</b> to film' })]));
