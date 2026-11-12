@@ -38,6 +38,9 @@
     film: { title: 'Film it', ask: 'Film it', icon: I.film, hint: 'See the price, then render it on our GPUs.',
       say: 'Ready to film. You see the price first, and nothing renders until you press the button.' }
   };
+  T.media = { title: 'Media', ask: 'Media', icon: I.film, hint: '', say: 'One of your files. Drag a line out of its + to do something with it, or wire it into the final video.' };
+  T.final = { title: 'Final video', ask: 'Your final video', icon: I.play, hint: 'Wire clips into this. In order, they are your video.',
+    say: 'This is your video: every clip wired into it, in order. Play it here, caption it, tighten it, then export.' };
   var ORDER = ['subject', 'creator', 'format', 'script', 'voice', 'film'];
   var MAKES = [
     { id: 'clip', icon: I.point, t: 'Clip it', d: 'Your creator points up at the product and tells people why to buy it.', person: true },
@@ -49,13 +52,13 @@
   /* ---------- the graph ---------- */
   function rid() { return 'n' + Math.random().toString(36).slice(2, 8); }
   function mk(type, x, y) { return { id: rid(), type: type, x: Math.round(x), y: Math.round(y), d: type === 'subject' ? { tab: 'shop', sort: 'trending' } : type === 'format' ? { seconds: 8 } : {} }; }
-  function fresh() { var n = mk('subject', 0, 0); return { guided: true, view: null, nodes: [n], wires: [], open: n.id }; }
+  function fresh() { var n = mk('subject', 0, 0); return { guided: true, view: null, nodes: [n], wires: [], open: n.id, pristine: true }; }
   var G = null;
   try { G = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
   if (!G || !G.nodes || !G.nodes.length || !G.wires) G = fresh();
   G.nodes.forEach(function (n) { if (n.type === 'film' && n.d.film && n.d.film.state === 'run') n.d.film = null; });   // a render cannot be picked up after a reload
   var V = G.view || { x: 0, y: 0, k: 1 };
-  function keep() { G.view = V; try { localStorage.setItem(KEY, JSON.stringify(G)); } catch (e) {} }
+  function keep() { G.view = V; delete G.pristine; try { localStorage.setItem(KEY, JSON.stringify(G)); } catch (e) {} }
   function P() { return S.project(); }
   function has(id) { return !!(id && P() && P().assets[id]); }
   function node(id) { return G.nodes.filter(function (n) { return n.id === id; })[0] || null; }
@@ -63,7 +66,7 @@
   function outs(id) { return G.wires.filter(function (w) { return w.from === id; }).map(function (w) { return node(w.to); }).filter(Boolean); }
   function ctx(id) {                                         // the nearest node of each kind, looking back along the wires
     var out = {}, seen = {}, q = [id];
-    while (q.length) { var n = node(q.shift()); if (!n || seen[n.id]) continue; seen[n.id] = 1; if (!out[n.type]) out[n.type] = n; ins(n.id).forEach(function (m) { q.push(m.id); }); }
+    while (q.length) { var n = node(q.shift()); if (!n || seen[n.id]) continue; seen[n.id] = 1; var key = n.type === 'media' ? n.d.role : n.type; if (key && !out[key]) out[key] = n; ins(n.id).forEach(function (m) { q.push(m.id); }); }
     return out;
   }
   function below(id) {
@@ -73,6 +76,8 @@
   }
   function isDone(n) {
     var d = n.d;
+    if (n.type === 'media') return has(d.asset);
+    if (n.type === 'final') return false;
     return n.type === 'subject' ? !!d.subject : n.type === 'creator' ? !!d.creator : n.type === 'format' ? !!(d.make && d.ok) : n.type === 'script' ? !!(d.script && d.ok)
          : n.type === 'voice' ? !!d.voice : !!(d.film && d.film.state === 'done');
   }
@@ -92,12 +97,146 @@
     });
     if (G.open && !node(G.open)) G.open = null;
   }
+  /* ---------- media on the canvas, and the final video ---------- */
+  function finalNode() { return G.nodes.filter(function (n) { return n.type === 'final'; })[0] || null; }
+  function mediaNode(asset) { return G.nodes.filter(function (n) { return n.type === 'media' && n.d.asset === asset; })[0] || null; }
+  function wired(a, b) { return G.wires.some(function (w) { return w.from === a && w.to === b; }); }
+  function inCut(asset) { var p = P(); return p.tracks.video.concat(p.tracks.audio).some(function (c) { return c.asset === asset; }); }
+  function fill(n) {                                          // what a media node is, to the nodes it feeds: the subject, the person, or the voice
+    var a = P().assets[n.d.asset]; if (!a) return;
+    var role = a.kind === 'audio' ? 'voice' : a.kind === 'video' ? 'subject' : n.d.as || (a.id === P().avatar ? 'creator' : a.source === 'product' || P().avatar ? 'subject' : 'creator');
+    n.d.role = role; delete n.d.subject; delete n.d.creator; delete n.d.voice;
+    if (role === 'subject') n.d.subject = { kind: a.reference ? 'reference' : 'asset', asset: a.id, title: (a.meta && a.meta.product) || a.name, poster: thumb(a), price: a.meta && a.meta.price };
+    else if (role === 'creator') n.d.creator = { kind: 'avatar', asset: a.id, title: a.name, poster: a.url };
+    else n.d.voice = { kind: 'own', asset: a.id, title: a.name };
+  }
+  function addMedia(asset, x, y) { var at = freeSpot(x, y), n = { id: rid(), type: 'media', x: at.x, y: at.y, d: { asset: asset } }; G.nodes.push(n); fill(n); return n; }
+  function sync() {                                           // the canvas follows the project: files that exist, and the cut wired into Final
+    var p = P(); if (!p) return;
+    if (G.pristine && (p.tracks.video.length || p.tracks.audio.length)) { G.nodes = []; G.wires = []; G.open = null; }   // an existing video opens as itself, not as an empty workflow
+    G.nodes = G.nodes.filter(function (n) { return n.type !== 'media' || p.assets[n.d.asset]; });
+    var fin = finalNode();
+    if (!fin) {
+      var right = G.nodes.length ? Math.max.apply(null, G.nodes.map(function (n) { return n.x; })) + 2 * (NW + GAP) : NW + GAP;
+      fin = { id: rid(), type: 'final', x: right, y: 0, d: {} }; G.nodes.push(fin);
+    }
+    G.nodes.forEach(function (n) {                            // a filmed clip sits right after the node that filmed it
+      var a = n.type === 'film' && n.d.film && n.d.film.state === 'done' && n.d.film.asset;
+      if (a && p.assets[a]) { var m = mediaNode(a) || addMedia(a, n.x + NW + GAP, n.y); if (!wired(n.id, m.id)) G.wires.push({ from: n.id, to: m.id }); }
+    });
+    if (!G.known) { G.known = {}; Object.keys(p.assets).forEach(function (id) { G.known[id] = 1; }); }   // first time: the whole library does not flood the canvas
+    Object.keys(p.assets).forEach(function (id) {             // anything new (Ember made it, you uploaded it) appears as a node
+      if (G.known[id]) return; G.known[id] = 1;
+      if (p.assets[id].source !== 'product' && !mediaNode(id)) addMedia(id, fin.x - (NW + GAP), fin.y).d.auto = 1;
+    });
+    G.nodes = G.nodes.filter(function (n) {                    // a file a workflow node already holds (the avatar picked in On camera, the selling video picked in The subject) is not also a loose node
+      if (n.type !== 'media' || !n.d.auto || G.wires.some(function (w) { return w.from === n.id || w.to === n.id; }) || inCut(n.d.asset)) return true;
+      var a = p.assets[n.d.asset], vid = a.meta && a.meta.video_id;
+      return !G.nodes.some(function (m) {
+        if (m.type === 'media') return false; var d = m.d;
+        return (d.creator && d.creator.asset === a.id) || (d.voice && d.voice.asset === a.id) ||
+               (d.subject && (d.subject.asset === a.id || (d.subject.kind === 'shop' && vid && String(d.subject.id) === String(vid))));
+      });
+    });
+    var cut = {}; p.tracks.video.concat(p.tracks.audio).forEach(function (c) { cut[c.asset] = 1; });
+    Object.keys(cut).forEach(function (id) { var m = mediaNode(id) || addMedia(id, fin.x - (NW + GAP), fin.y); if (!wired(m.id, fin.id)) G.wires.push({ from: m.id, to: fin.id }); });
+    G.wires = G.wires.filter(function (w) {
+      var a = node(w.from), b = node(w.to); if (!a || !b) return false;
+      return b.id !== fin.id || (a.type === 'media' && cut[a.d.asset]);
+    });
+    G.nodes.forEach(function (n) { if (n.type === 'media') fill(n); });
+    if (G.open && !node(G.open)) G.open = null;
+  }
+  function choose(title, at, items) {                         // a small menu on the board
+    var r = view.getBoundingClientRect();
+    menuEl.textContent = ''; menuEl.appendChild(el('h4', { text: title }));
+    items.forEach(function (it) {
+      menuEl.appendChild(el('button', { type: 'button', class: it.hot ? 'hot' : null, disabled: it.off ? '' : null, onclick: function () { hideMenu(); it.on(); } },
+        [el('span', { class: 'fn-ic', html: svg(it.icon || I.spark) }), el('span', { class: 'tx' }, [el('b', { text: it.t }), el('span', { text: it.d || '' })]), it.hot ? el('em', { text: 'Suggested' }) : null]));
+    });
+    menuEl.hidden = false;
+    menuEl.style.left = clamp(at.x * V.k + V.x, 12, r.width - menuEl.offsetWidth - 12) + 'px';
+    menuEl.style.top = clamp(at.y * V.k + V.y - 40, 12, r.height - menuEl.offsetHeight - 12) + 'px';
+  }
+  function remake(subject, person) {                          // "make this, with this person": a What to make node fed by both
+    if (person) { var pa = P().assets[person.d.asset]; if (pa && pa.kind === 'image') person.d.as = 'creator'; fill(person); }
+    var sa = P().assets[subject.d.asset]; if (sa && sa.kind === 'image') subject.d.as = 'subject'; fill(subject);
+    var x = Math.max(subject.x, person ? person.x : subject.x) + NW + GAP, y = person ? Math.round((subject.y + person.y) / 2) : subject.y;
+    var n = addNode('format', x, y, subject.id);
+    if (person) G.wires.push({ from: person.id, to: n.id });
+    keep(); open(n.id);
+  }
+  function avatarNode(near) {                                 // the person's avatar as a node, added beside `near` if it is not on the canvas yet
+    var id = P().avatar; if (!id || !P().assets[id]) return null;
+    return mediaNode(id) || addMedia(id, near.x, near.y + NH + 44);
+  }
+  function link(a, b) {                                       // two things were wired together: what does that mean?
+    var p = P(), A = a.type === 'media' ? p.assets[a.d.asset] : null, B = b.type === 'media' ? p.assets[b.d.asset] : null;
+    var at = { x: (a.x + b.x) / 2 + NW / 2, y: (a.y + b.y) / 2 + NH / 2 };
+    if (a.type === 'final') { say('The final video is the end of the line. Export it from its panel.'); return true; }
+    if (b.type === 'final') {
+      if (!A) { say('Only clips and sounds go into the final video. A Film node makes a clip; wire that in.'); return true; }
+      if (A.reference) { choose('This is another creator\'s video', at, [
+        { t: 'Remake it with my avatar', d: 'Film your own version, then use that.', icon: I.point, hot: true, off: !p.avatar, on: function () { remake(a, avatarNode(a)); } },
+        { t: 'Remake it with no one on camera', d: 'Product shots only.', icon: I.bag, on: function () { remake(a, null); } }]);
+        say('A selling video is here to work from. It cannot go into your video as it is.'); return true; }
+      if (A.kind === 'image') { say('A picture does not play by itself. Wire it into "What to make" and film it.'); return true; }
+      S.cut.add(A.id); return true;
+    }
+    if (!A || !B) return false;                               // a media node into a workflow node: an ordinary wire
+    var vid = function (x) { return x.kind === 'video'; }, own = function (x) { return x.kind === 'video' && !x.reference; }, items = [];
+    if ((vid(A) && B.kind === 'image') || (A.kind === 'image' && vid(B))) {
+      var sub = vid(A) ? a : b, per = vid(A) ? b : a, ref = p.assets[sub.d.asset].reference;
+      items.push({ t: ref ? 'Remake this video with this person' : 'Film this person, working from this clip', d: 'A new script, a new shot, their face.', icon: I.point, hot: true, on: function () { remake(sub, per); } });
+    }
+    if (A.kind === 'image' && B.kind === 'image') items.push({ t: 'Film this person with this product', d: 'The first is who, the second is what.', icon: I.point, hot: true, on: function () { remake(b, a); } });
+    if (own(A) && own(B)) {
+      items.push({ t: 'Play one after the other', d: 'Both go into the final video, in this order.', icon: I.film, hot: true, on: function () { S.cut.add(A.id); S.cut.add(B.id); } });
+      items.push({ t: 'Put them side by side', d: 'Ember builds one clip from the two.', icon: I.spark, on: function () { S.send('Put "' + A.name + '" on the left and "' + B.name + '" on the right as one side by side clip, and add it to the video.'); } });
+      items.push({ t: 'Stack one above the other', d: 'Ember builds one clip from the two.', icon: I.spark, on: function () { S.send('Stack "' + A.name + '" above "' + B.name + '" as one clip, and add it to the video.'); } });
+    }
+    if ((A.kind === 'audio' && own(B)) || (own(A) && B.kind === 'audio')) {
+      var snd = A.kind === 'audio' ? A : B, clip = A.kind === 'audio' ? B : A;
+      items.push({ t: 'Use this sound as the voice of this clip', d: 'The clip\'s own sound is muted.', icon: I.mic, hot: true, on: function () {
+        if (!inCut(clip.id)) S.cut.add(clip.id);
+        say('Laying the voice over the clip.');
+        sse('flow_voice', { asset: clip.id, voice: { kind: 'own', asset: snd.id }, line: '' }, function () {}).catch(function () {}).then(function () { say('The voice is on the clip.'); });
+      } });
+    }
+    items.push({ t: 'Ask Ember about these two', d: 'Say what you want done with them.', icon: I.spark, on: function () { S.ask('With "' + A.name + '" and "' + B.name + '": '); } });
+    choose('What should these two make?', at, items);
+    return true;
+  }
+  function place(asset, cx, cy) {                             // put a file on the canvas where it was dropped
+    sync();
+    var n = mediaNode(asset) || addMedia(asset, 0, 0), w = toWorld(cx, cy), at;
+    n.x = -99999; at = freeSpot(Math.round(w.x - NW / 2), Math.round(w.y - NH / 2)); n.x = at.x; n.y = at.y;
+    keep(); draw(); return n;
+  }
+
+  function begin(n) {                                         // dropped on empty board and left unwired: the start of a new workflow
+    if (outs(n.id).length) return void open(n.id);            // it already feeds something; just show it
+    var c = ctx(n.id), next = ORDER.filter(function (t) { return !c[t]; })[0];
+    if (!next) return void open(n.id);
+    keep(); open(addNode(next, n.x + NW + GAP, n.y, n.id).id);
+  }
+  function dropped(asset, cx, cy, onto) {                     // a file or a rail item landed on the board
+    var target = onto && node(onto), n;
+    if (target && !(target.type === 'media' && target.d.asset === asset)) {   // dropped onto a node: wire it into that node
+      sync(); n = mediaNode(asset) || addMedia(asset, target.x - NW - GAP, target.y);
+      keep(); draw(); connect(n, target); return n;
+    }
+    n = place(asset, cx, cy); begin(n); return n;
+  }
+
   function freeSpot(x, y) {
     var hit = function () { return G.nodes.some(function (n) { return Math.abs(n.x - x) < NW + 30 && Math.abs(n.y - y) < NH + 24; }); };
     while (hit()) y += NH + 44;
     return { x: x, y: y };
   }
   function addNode(type, x, y, from, to) {
+    var fin = finalNode();                                     // the final video makes room: a new step never lands under or on it
+    if (fin && Math.abs(fin.x - x) < NW + 30 && Math.abs(fin.y - y) < NH + 24) { fin.x = x + NW + GAP; while (G.nodes.some(function (m) { return m !== fin && Math.abs(m.x - fin.x) < NW + 30 && Math.abs(m.y - fin.y) < NH + 24; })) fin.x += NW + GAP; }
     var at = freeSpot(x, y), n = mk(type, at.x, at.y);
     G.nodes.push(n);
     if (from) G.wires.push({ from: from, to: n.id });
@@ -107,11 +246,13 @@
   function connect(a, b) {
     if (a.id === b.id || G.wires.some(function (w) { return w.from === a.id && w.to === b.id; })) return;
     if (b.id === a.id || below(b.id).some(function (m) { return m.id === a.id; })) return void say('That would make a loop. A wire has to lead forward.');
+    if (link(a, b)) return;
     G.wires.push({ from: a.id, to: b.id }); clear(b, true); changed(b);
     keep(); draw(); renderPanel();
   }
   function removeNode(n) {
-    if (G.nodes.length < 2) return;
+    if (G.nodes.length < 2 || n.type === 'final') return;
+    if (n.type === 'media' && inCut(n.d.asset)) S.cut.remove(n.d.asset);        // off the canvas means out of the video
     outs(n.id).forEach(function (m) { clear(m, true); changed(m); });
     G.nodes = G.nodes.filter(function (m) { return m.id !== n.id; });
     G.wires = G.wires.filter(function (w) { return w.from !== n.id && w.to !== n.id; });
@@ -186,7 +327,7 @@
     $('#flow-pct').textContent = Math.round(V.k * 100) + '%';
   }
   function room() {                                          // the part of the board not covered by the open panel
-    var r = view.getBoundingClientRect(), phone = r.width < 760, pw = !panel.hidden && !phone ? panel.offsetWidth + 24 : 0;
+    var r = view.getBoundingClientRect(), phone = window.innerWidth <= 760, pw = !panel.hidden && !phone ? panel.offsetWidth + 24 : 0;
     return { w: r.width - pw, h: phone && !panel.hidden ? r.height * 0.42 : r.height, left: r.left, top: r.top };
   }
   function toWorld(cx, cy) { var r = view.getBoundingClientRect(); return { x: (cx - r.left - V.x) / V.k, y: (cy - r.top - V.y) / V.k }; }
@@ -194,11 +335,11 @@
   function fit() {
     var r = room(), xs = G.nodes.map(function (n) { return n.x; }), ys = G.nodes.map(function (n) { return n.y; });
     var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs) + NW, y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys) + NH;
-    V.k = clamp(Math.min((r.w - 120) / (x1 - x0), (r.h - 120) / (y1 - y0)), 0.35, 1.15);
+    V.k = clamp(Math.min((r.w - 96) / (x1 - x0), (r.h - 96) / (y1 - y0)), 0.05, 1.15);   // as small as it takes: Fit always shows every node
     V.x = r.w / 2 - (x0 + x1) / 2 * V.k; V.y = r.h / 2 - (y0 + y1) / 2 * V.k; apply(true); keep();
   }
   function zoomAt(cx, cy, k) {
-    var r = view.getBoundingClientRect(), px = cx - r.left, py = cy - r.top; k = clamp(k, 0.35, 1.6);
+    var r = view.getBoundingClientRect(), px = cx - r.left, py = cy - r.top; k = clamp(k, 0.1, 1.6);
     V.x = px - (px - V.x) * (k / V.k); V.y = py - (py - V.y) * (k / V.k); V.k = k; apply(false); keep();
   }
   function curve(x1, y1, x2, y2) { var d = Math.max(46, Math.abs(x2 - x1) / 2); return 'M' + x1 + ' ' + y1 + ' C' + (x1 + d) + ' ' + y1 + ' ' + (x2 - d) + ' ' + y2 + ' ' + x2 + ' ' + y2; }
@@ -220,6 +361,7 @@
   wiresEl.addEventListener('dblclick', function (e) {
     var i = e.target.getAttribute && e.target.getAttribute('data-w'); if (i === null || i === undefined) return;
     var w = G.wires[Number(i)], b = w && node(w.to); if (!w) return;
+    var from = node(w.from); if (b && b.type === 'final' && from && from.type === 'media') return void S.cut.remove(from.d.asset);   // unwired from Final: out of the video
     G.wires.splice(Number(i), 1); if (b) { clear(b, true); changed(b); }
     keep(); draw(); renderPanel();
   });
@@ -227,7 +369,7 @@
     var d = n.d, t = '', s = '', img = '', c;
     if (n.type === 'subject' && d.subject) { t = d.subject.title || 'An idea'; img = d.subject.poster || ''; s = d.subject.kind === 'shop' ? (d.subject.price ? money(d.subject.price) + ' · ' : '') + 'TikTok Shop' : d.subject.kind === 'asset' ? 'Your own' : 'An idea'; }
     if (n.type === 'creator' && d.creator) { t = d.creator.kind === 'none' ? 'No one on camera' : d.creator.kind === 'describe' ? d.creator.text : (d.creator.title || 'My avatar'); img = d.creator.poster || ''; s = d.creator.kind === 'avatar' ? 'Your creator' : d.creator.kind === 'describe' ? 'Described' : 'Product only'; }
-    if (n.type === 'format' && d.make === 'asis') { t = 'Edit it as it is'; s = 'No filming'; }
+    if (n.type === 'format' && d.make === 'asis') { t = 'Use it as it is'; s = 'No filming'; }
     else if (n.type === 'format' && d.make) { t = MAKES.filter(function (x) { return x.id === d.make; })[0].t; s = d.seconds + ' seconds · ' + money(cost(d.seconds)); }
     if (n.type === 'script' && d.script) { t = d.script.line ? '"' + d.script.line + '"' : d.script.shot; s = d.script.line ? d.script.line.split(/\s+/).length + ' words' : 'No speech'; }
     if (n.type === 'voice' && d.voice) { t = d.voice.kind === 'model' ? 'The presenter speaks' : d.voice.kind === 'fish' ? d.voice.title : 'My own voice'; s = d.voice.kind === 'model' ? 'Lips match' : 'Voiceover'; }
@@ -269,6 +411,7 @@
     return e;
   }
   function paint(n, e) {
+    if (n.type === 'media' || n.type === 'final') return void paintMedia(n, e);
     var m = T[n.type], done = isDone(n), need = needs(n), sum = summary(n), box = e.querySelector('.gn-s');
     e.className = 'gn ' + n.type + (done ? ' done' : '') + (n.id === G.open ? ' open' : '') + (need.length ? ' need' : '') + (e.classList.contains('new') ? ' new' : '') +
       (n.type === 'film' && n.d.film && n.d.film.state === 'run' ? ' busy' : '');
@@ -281,6 +424,25 @@
     if (sum) { var th = el('span', { class: 'th', html: sum.img ? '' : svg(m.icon) }); if (sum.img) th.style.backgroundImage = 'url("' + sum.img + '")'; box.appendChild(th); box.appendChild(el('div', {}, [el('b', { text: sum.t }), el('span', { text: sum.s })])); }
     else box.appendChild(el('p', { text: need.length ? 'Needs ' + need.map(function (x) { return T[x.type].title.toLowerCase(); }).join(' and ') + ' first.' : m.hint }));
   }
+  function paintMedia(n, e) {
+    var p = P(), ic = e.querySelector('.fn-ic'), small = e.querySelector('.fn-t small'), b = e.querySelector('.fn-t b'), box = e.querySelector('.gn-s');
+    e.style.left = n.x + 'px'; e.style.top = n.y + 'px'; box.textContent = '';
+    var cls = 'gn ' + n.type + (n.id === G.open ? ' open' : '') + (e.classList.contains('new') ? ' new' : '') + (e.classList.contains('acting') ? ' acting' : '');
+    if (n.type === 'final') {
+      var clips = p.tracks.video.length;
+      e.className = cls + (clips ? ' has' : ''); ic.style.backgroundImage = ''; ic.innerHTML = svg(I.play);
+      small.textContent = 'Final video'; b.textContent = clips ? 'Your video' : 'Nothing wired in yet';
+      box.appendChild(el('p', { text: clips ? clips + ' clip' + (clips === 1 ? '' : 's') + ' · ' + S.fmt(p.duration) + (p.tracks.captions.length ? ' · captions' : '') : 'Wire a clip into this node.' }));
+      return;
+    }
+    var a = p.assets[n.d.asset]; if (!a) return;
+    var th = thumb(a), cut = inCut(a.id);
+    e.className = cls + ' ' + a.kind + (cut ? ' incut' : '') + (a.reference ? ' ref' : '');
+    ic.style.backgroundImage = th ? 'url("' + th + '")' : ''; ic.innerHTML = th ? '' : svg(a.kind === 'audio' ? I.mic : I.film);
+    small.textContent = a.id === p.avatar ? 'My avatar' : a.reference ? 'Selling video' : a.kind === 'image' ? (n.d.role === 'creator' ? 'Person' : 'Picture') : a.kind === 'audio' ? 'Sound' : a.source === 'generated' ? 'Filmed clip' : 'Clip';
+    b.textContent = a.name;
+    box.appendChild(el('p', { text: (a.kind === 'image' ? '' : S.fmt(a.duration) + ' · ') + (cut ? 'In the video' : a.reference ? 'To work from' : 'Not in the video') }));
+  }
   function draw() {
     var have = {};
     G.nodes.forEach(function (n) {
@@ -291,14 +453,15 @@
     Object.keys(els).forEach(function (id) { if (!have[id]) { els[id].remove(); delete els[id]; } });
     drawWires();
     var sw = $('#flow-guided'); sw.setAttribute('aria-checked', String(!!G.guided));
-    var on = G.open && node(G.open), left = G.nodes.filter(function (n) { return !isDone(n); }).length;
-    $('#flow-step').textContent = on ? T[on.type].title : left ? left + ' to do' : 'All done';
+    var on = G.open && node(G.open), left = G.nodes.filter(function (n) { return n.type !== 'final' && !isDone(n); }).length;
+    $('#flow-step').textContent = on ? T[on.type].title : left ? left + ' to do' : 'Your canvas';
     if (on) { var nd = needs(on); say(nd.length ? 'This one needs ' + nd.map(function (x) { return T[x.type].title.toLowerCase(); }).join(' and ') + ' first. Add it from here, or drag a wire into this node.' : guideFor(on)); }
-    else say(G.guided ? 'Click a node to open it. I will add the next one as you finish each step. The editor opens once your clip is filmed.' : 'Drag a line out of a node\'s + to add what comes next, or double-click the board for a new node. Scroll to move, pinch or Ctrl-scroll to zoom.');
+    else say('Drag media in from the left or from your computer, wire nodes together, or tell Ember what to do. Whatever is wired into Final video is your video.');
   }
   function guideFor(n) {
-    if (n.type === 'film' && n.d.film && n.d.film.state === 'done') return 'Filmed. Have a look, then open it in the editor and we finish it together.';
+    if (n.type === 'film' && n.d.film && n.d.film.state === 'done') return 'Filmed. The clip is wired into your final video.';
     if (n.type === 'film' && n.d.film && n.d.film.state === 'run') return 'Filming now. This takes a few minutes; you can leave this open.';
+    if (n.type === 'media' || n.type === 'final') return T[n.type].say;
     if (isDone(n) && !G.guided) return 'Done. Drag a line out of its + to choose what comes next.';
     return T[n.type].say;
   }
@@ -309,7 +472,7 @@
     var o = outs(n.id);
     if (o.length) return void open(o[0].id);
     var c = ctx(n.id), next = ORDER.filter(function (t) { return !c[t]; })[0];
-    if (!next || n.type === 'film') return void renderPanel();
+    if (!next || n.type === 'film' || n.type === 'media' || n.type === 'final') return void renderPanel();
     open(addNode(next, n.x + NW + GAP, n.y, n.id).id);
   }
 
@@ -317,8 +480,13 @@
   function hideMenu() { menuEl.hidden = true; }
   function showMenu(from, at) {
     var c = from ? ctx(from.id) : {}, next = ORDER.filter(function (t) { return !c[t]; })[0], r = view.getBoundingClientRect();
+    var fa = from && from.type === 'media' ? P().assets[from.d.asset] : null;
     menuEl.textContent = '';
     menuEl.appendChild(el('h4', { text: from ? 'What comes next?' : 'Add a node' }));
+    var quick = function (icon, t, d, on) { menuEl.appendChild(el('button', { type: 'button', class: 'hot', onclick: function () { hideMenu(); on(); } }, [el('span', { class: 'fn-ic', html: svg(icon) }), el('span', { class: 'tx' }, [el('b', { text: t }), el('span', { text: d })])])); };
+    if (fa && fa.kind !== 'image' && !fa.reference && !inCut(fa.id)) quick(I.play, 'Add to the final video', 'It plays after what is already there.', function () { S.cut.add(fa.id); });
+    if (fa && fa.kind === 'video' && P().avatar) quick(I.point, fa.reference ? 'Remake it with my avatar' : 'Film my avatar from this clip', 'A new script and a new shot.', function () { remake(from, avatarNode(from)); });
+    if (fa) next = 'format';
     ORDER.forEach(function (t) {
       menuEl.appendChild(el('button', { type: 'button', class: t === next && from ? 'hot' : null, onclick: function () {
         hideMenu(); var n = addNode(t, at.x, at.y - NH / 2, from ? from.id : null); keep(); open(n.id);
@@ -337,6 +505,23 @@
     var up = function () { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); view.classList.remove('panning'); keep(); };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
   });
+  view.addEventListener('dragover', function (e) {            // media dragged from the rail
+    var t = e.dataTransfer && Array.prototype.slice.call(e.dataTransfer.types || []);
+    if (t && (t.indexOf('text/ember-asset') >= 0 || t.indexOf('text/ember-shop') >= 0)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }
+  });
+  view.addEventListener('drop', function (e) {
+    var asset = e.dataTransfer.getData('text/ember-asset'), shop = e.dataTransfer.getData('text/ember-shop');
+    if (!asset && !shop) return;
+    e.preventDefault();
+    var hitNode = e.target.closest ? e.target.closest('.gn') : null, onto = hitNode ? hitNode.getAttribute('data-id') : null;
+    if (asset && has(asset)) return void dropped(asset, e.clientX, e.clientY, onto);
+    var cx = e.clientX, cy = e.clientY;
+    say('Bringing that selling video onto the canvas.');
+    S.quiet('shop_import', { video_ids: [shop] }).catch(function () {}).then(function () {
+      var id = Object.keys(P().assets).filter(function (k) { return String((P().assets[k].meta || {}).video_id) === String(shop); })[0];
+      if (id) dropped(id, cx, cy, onto); else say('That video could not be fetched from TikTok. Try another.');
+    });
+  });
   view.addEventListener('dblclick', function (e) { if (e.target.closest('.gn, .flow-panel, .flow-menu, .flow-zoom') || e.target.getAttribute('data-w') !== null) return; showMenu(null, toWorld(e.clientX, e.clientY)); });
   view.addEventListener('wheel', function (e) {
     if (e.target.closest('.flow-panel, .flow-menu')) return;
@@ -353,9 +538,11 @@
   /* ---------- the panel: the open node says what it wants ---------- */
   function renderPanel() {
     var n = G.open && node(G.open);
+    S.parkMonitor();                                          // the preview player lives in the Final panel only while that is open
     panel.hidden = !n; root.classList.toggle('has-panel', !!n);
     if (!n) return;
     var m = T[n.type], body = el('div', { class: 'fp-body' }), need = needs(n);
+    if (n.type === 'media') m = { icon: m.icon, title: 'Media', ask: (P().assets[n.d.asset] || {}).name || 'Media' };
     panel.textContent = '';
     panel.appendChild(el('header', { class: 'fp-h' }, [el('span', { class: 'fn-ic', html: svg(m.icon) }), el('div', { class: 'fn-t' }, [el('small', { text: m.title }), el('b', { text: m.ask })]),
       el('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Close', title: 'Close (Esc)', html: svg(I.x), onclick: function () { G.open = null; keep(); draw(); renderPanel(); } })]));
@@ -372,11 +559,61 @@
       body.appendChild(el('p', { class: 'f-note', text: 'You can also drag a line from any node that has it into this one.' }));
       return;
     }
-    ({ subject: renderSubject, creator: renderCreator, format: renderFormat, script: renderScript, voice: renderVoice, film: renderFilm })[n.type](body, n);
+    ({ subject: renderSubject, creator: renderCreator, format: renderFormat, script: renderScript, voice: renderVoice, film: renderFilm, media: renderMedia, final: renderFinal })[n.type](body, n);
+    if (n.type === 'media' || n.type === 'final') return;
     if (isDone(n) && !G.guided && n.type !== 'film' && !outs(n.id).length) body.appendChild(el('div', { class: 'f-foot' }, [
       el('button', { type: 'button', class: 'btn', html: 'Choose what comes next' + svg(I.arrow), onclick: function () { showMenu(n, { x: n.x + NW + GAP, y: n.y + NH / 2 }); } })]));
   }
   function refresh(n) { if (G.open === n.id) renderPanel(); draw(); }
+  function renderMedia(box, n) {
+    var p = P(), a = p.assets[n.d.asset]; if (!a) return;
+    var cut = inCut(a.id), view2 = el('div', { class: 'f-media ' + a.kind });
+    if (a.kind === 'video') view2.appendChild(el('video', { src: a.url, controls: '', playsinline: '', poster: a.poster_url || null }));
+    else if (a.kind === 'audio') view2.appendChild(el('audio', { src: a.url, controls: '', class: 'f-audio' }));
+    else view2.appendChild(el('img', { src: a.url, alt: '' }));
+    box.appendChild(view2);
+    box.appendChild(el('p', { class: 'f-note', text: (a.reference ? 'Another creator\'s selling video. It is here to work from: its order and its beats. It never goes into your video.'
+      : a.kind === 'image' ? 'A picture. Film it by wiring it into "What to make".' : cut ? 'This is in your video.' : 'This is on the canvas but not in your video yet.') }));
+    if (a.kind === 'image' && a.source !== 'product') {
+      box.appendChild(el('span', { class: 'f-lab' }, ['This picture is']));
+      box.appendChild(seg([['creator', 'The person on camera'], ['subject', 'The product']], n.d.role, function (v) { n.d.as = v; fill(n); changed(n); keep(); refresh(n); }));
+    }
+    var foot = el('div', { class: 'f-foot' });
+    if (a.kind !== 'image' && !a.reference) foot.appendChild(el('button', { type: 'button', class: 'btn' + (cut ? '' : ' btn-accent'), text: cut ? 'Take it out of the video' : 'Add to the final video', onclick: function () { if (cut) S.cut.remove(a.id); else S.cut.add(a.id); } }));
+    if (a.kind === 'video') foot.appendChild(el('button', { type: 'button', class: 'btn' + (a.reference ? ' btn-accent' : ''), disabled: p.avatar ? null : '', title: p.avatar ? null : 'Save an avatar first: drop a photo of your creator on the canvas', text: a.reference ? 'Remake it with my avatar' : 'Film my avatar from it', onclick: function () { remake(n, avatarNode(n)); } }));
+    if (a.kind === 'image' && a.id !== p.avatar && n.d.role === 'creator') foot.appendChild(el('button', { type: 'button', class: 'btn btn-accent', text: 'Use as my avatar', onclick: function () { S.setAvatar(a.id); } }));
+    if (a.kind === 'image') foot.appendChild(el('button', { type: 'button', class: 'btn', html: 'Film it' + svg(I.arrow), onclick: function () { remake(n, n.d.role === 'creator' ? null : avatarNode(n)); } }));
+    foot.appendChild(el('button', { type: 'button', class: 'btn', text: 'Ask Ember about it', onclick: function () { S.ask('About "' + a.name + '": '); } }));
+    box.appendChild(foot);
+    if (a.kind === 'video' && !p.avatar) box.appendChild(el('p', { class: 'f-note', text: 'To put yourself in it, drop a photo of your creator on the canvas and wire the two together.' }));
+  }
+  function renderFinal(box, n) {
+    var p = P(), clips = p.tracks.video;
+    if (!clips.length) {
+      box.appendChild(el('div', { class: 'fp-need' }, [el('span', { class: 'fn-ic', html: svg(I.play) }),
+        el('div', {}, [el('b', { text: 'Nothing is wired in yet' }), el('span', { text: 'Drag a line from a clip\'s + onto this node, drop a clip from the left, or film one.' })]), el('span')]));
+      return;
+    }
+    var holder = el('div', { class: 'f-player' }); box.appendChild(holder); S.mountMonitor(holder);
+    box.appendChild(el('span', { class: 'f-lab' }, ['In this video, in order', el('em', { text: S.fmt(p.duration) })]));
+    var list = el('div', { class: 'f-clips' });
+    clips.forEach(function (c, i) {
+      var a = p.assets[c.asset], th = el('i'); if (thumb(a)) th.style.backgroundImage = 'url("' + thumb(a) + '")';
+      list.appendChild(el('div', { class: 'f-clip' }, [th, el('div', {}, [el('b', { text: a.name }), el('span', { text: S.fmt(c.out - c.in) })]),
+        el('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Earlier', title: 'Earlier', disabled: i ? null : '', html: svg('<path d="M10 15V5M5.5 9.5L10 5l4.5 4.5"/>'), onclick: function () { S.cut.move(c.id, -1); } }),
+        el('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Later', title: 'Later', disabled: i < clips.length - 1 ? null : '', html: svg('<path d="M10 5v10M5.5 10.5L10 15l4.5-4.500"/>'), onclick: function () { S.cut.move(c.id, 1); } }),
+        el('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Take out', title: 'Take out of the video', html: svg(I.x), onclick: function () { S.cut.drop(c.id); } })]));
+    });
+    box.appendChild(list);
+    var caps = p.tracks.captions.length;
+    box.appendChild(el('div', { class: 'f-foot' }, [
+      el('button', { type: 'button', class: 'btn', text: caps ? 'Redo captions' : 'Add captions', onclick: function () { S.act('auto_captions'); } }),
+      caps ? el('button', { type: 'button', class: 'btn', text: 'Clear captions', onclick: function () { S.cut.clearCaptions(); } }) : null,
+      el('button', { type: 'button', class: 'btn', text: 'Cut the pauses', onclick: function () { S.act('remove_silences'); } }),
+      el('button', { type: 'button', class: 'btn', html: svg(I.mic) + 'Record my voice', onclick: function () { S.record(); } })]));
+    box.appendChild(el('p', { class: 'f-note', text: (caps ? caps + ' caption' + (caps === 1 ? '' : 's') + ', timed to the words. ' : '') + 'For anything finer (trim a clip, move a caption, change the pace), tell Ember.' }));
+    box.appendChild(el('div', { class: 'f-foot' }, [el('span', { class: 'grow' }), el('button', { type: 'button', class: 'btn btn-accent btn-lg', html: 'Export and post' + svg(I.arrow), onclick: function () { S.post(); } })]));
+  }
 
   /* ---------- a picture from our own models (a frame of a short test shot) ---------- */
   var pic = null, picErr = '';
@@ -519,13 +756,13 @@
     });
     if (ownClip) {
       var asis = el('button', { type: 'button', class: 'f-opt', 'aria-pressed': String(d.make === 'asis'), onclick: function () { d.make = 'asis'; d.ok = false; keep(); refresh(n); } },
-        [el('span', { html: svg(I.film, 24) }), el('b', { text: 'Edit it as it is' }), el('span', { text: 'No filming. Your clip opens in the editor.' })]);
+        [el('span', { html: svg(I.film, 24) }), el('b', { text: 'Use it as it is' }), el('span', { text: 'No filming. Your clip goes into the final video.' })]);
       asis.style.setProperty('--k', 4); opts.appendChild(asis);
     }
     box.appendChild(opts);
     if (d.make === 'asis') {
       box.appendChild(el('div', { class: 'f-foot' }, [el('p', { class: 'f-note', text: 'Nothing is filmed and nothing is charged.' }), el('span', { class: 'grow' }),
-        el('button', { type: 'button', class: 'btn btn-accent', html: 'Open it in the editor' + svg(I.arrow), onclick: function () { S.editAsset(sub.asset); } })]));
+        el('button', { type: 'button', class: 'btn btn-accent', html: 'Add it to the final video' + svg(I.arrow), onclick: function () { S.cut.add(sub.asset); var fn = finalNode(); if (fn) open(fn.id); } })]));
       return;
     }
     var area = null;
@@ -693,14 +930,15 @@
     sse('flow_film', { line: sc.line, shot: sc.shot, seconds: f.seconds, name: sc.name, voice: vo,
       creator_asset: cr.kind === 'avatar' ? cr.asset : null, creator_text: cr.kind === 'describe' ? cr.text : '',
       product_asset: sc.product_asset || (sub.kind === 'asset' && has(sub.asset) && P().assets[sub.asset].kind === 'image' ? sub.asset : null),
-      fresh: n.d.fresh === undefined || n.d.fresh === null ? starterCut() : n.d.fresh, approved: price }, function (ev) {
+      fresh: false, approved: price }, function (ev) {
       if (ev.type === 'progress' && n.d.film) { n.d.film.note = ev.note; var nn = $('#f-film-note'); if (nn) nn.textContent = ev.note; }
       else if (ev.type === 'flow_film') { asset = ev.rendered ? ev.asset : null; why = ev.rendered ? '' : (ev.reason || 'The render did not finish.'); said = ev.heard !== undefined ? { heard: ev.heard, match: ev.match } : null; }
       else if (ev.type === 'error') why = ev.message;
     }).catch(function () { why = 'The connection dropped.'; }).then(function () {
       clearInterval(filmTick);
       n.d.film = asset ? { state: 'done', asset: asset, said: said, voiced: vo.kind !== 'model' ? vo : null } : { state: 'fail', reason: why || 'The render did not finish.' };
-      keep(); refresh(n);
+      if (asset && said && said.match < 0.8 && vo.kind === 'model' && sc.line) n.d.fix = 'pick';   // the words came out wrong: the voices to fix it with are already showing
+      sync(); keep(); refresh(n);
     });
   }
   function renderFilm(box, n) {
@@ -733,23 +971,20 @@
         : 'I listened back: the line came out right (' + Math.round(fm.said.match * 100) + '% of the words).' }));
       if (d.fix === 'run') { bill.appendChild(el('div', { class: 'f-prog' }, [el('b', { text: 'Recording the voice' })])); bill.appendChild(el('div', { class: 'f-bar' }, [el('i')])); }
       else if (d.fix === 'pick') {
-        bill.appendChild(el('span', { class: 'f-lab' }, ['Pick the voice that reads the line']));
+        bill.appendChild(el('span', { class: 'f-lab' }, [bad ? 'The words came out wrong. Tap a voice to fix it' : 'Pick the voice that reads the line']));
         bill.appendChild(el('div', { class: 'f-line', text: sc.line }));
         voiceList(bill, n, fm.voiced && fm.voiced.voice_id, function (v) { fixVoice(n, v, sc.line); });
         bill.appendChild(el('p', { class: 'f-note', text: 'The clip\'s own speech is muted and this voice is laid over it, so the lips will not match the words.' }));
       } else if (sc.line) bill.appendChild(el('div', { class: 'f-foot' }, [
         el('button', { type: 'button', class: 'btn' + (bad ? ' btn-accent' : ''), html: svg(I.mic) + (fm.voiced ? 'Change the voice' : 'Replace the voice'), onclick: function () { d.fix = 'pick'; renderPanel(); } }),
         d.fixErr ? el('p', { class: 'f-note warn', text: d.fixErr }) : el('p', { class: 'f-note', text: bad ? 'A library voice reads your exact line. No new render.' : 'Words wrong, or want a different voice? No new render needed.' })]));
-      bill.appendChild(el('p', { class: 'f-note', text: 'It is on your timeline, labelled AI-generated. Open the editor to cut it, caption it and post it.' }));
+      bill.appendChild(el('p', { class: 'f-note', text: 'It is wired into your final video, labelled AI-generated.' }));
       bill.appendChild(el('div', { class: 'f-foot' }, [
-        el('button', { type: 'button', class: 'btn btn-accent', html: 'Open in the editor' + svg(I.arrow), onclick: function () { finish(n); } }),
+        el('button', { type: 'button', class: 'btn btn-accent', html: 'Open the final video' + svg(I.arrow), onclick: function () { var fn = finalNode(); if (fn) open(fn.id); } }),
         el('button', { type: 'button', class: 'btn', text: 'Film another take', onclick: function () { d.film = null; keep(); refresh(n); } })]));
     } else {
       if (st === 'fail') bill.appendChild(el('p', { class: 'f-note warn', text: d.film.reason }));
       bill.appendChild(el('div', { class: 'f-cost' }, [money(price), el('small', { text: f.seconds + ' seconds · 9:16 · with sound' })]));
-      var freshCut = d.fresh === undefined || d.fresh === null ? starterCut() : d.fresh;
-      if (p.tracks.video.length) bill.appendChild(el('div', { class: 'f-row' }, [seg([[true, 'Start a new cut'], [false, 'Add to my cut']], freshCut, function (v) { d.fresh = v; keep(); renderPanel(); }),
-        el('p', { class: 'f-note', text: freshCut ? 'Your current cut is kept in Versions.' : 'It goes on the end of your timeline.' })]));
       if (!online) bill.appendChild(el('p', { class: 'f-note warn', text: 'Our GPU is offline right now, so nothing can be filmed. Your board is saved; come back to this node when it is on.' }));
       bill.appendChild(el('div', { class: 'f-foot' }, [
         el('button', { type: 'button', class: 'btn btn-accent btn-lg', disabled: online ? null : '', html: svg(I.film) + (st === 'fail' ? 'Try again' : 'Film it') + ' · ' + money(price), onclick: function () { film(n); } }),
@@ -767,13 +1002,6 @@
       keep(); refresh(n);
     });
   }
-  function finish(n) {                                       // hand over to the editor and to Ember
-    var a = n.d.film && n.d.film.asset, c = P().tracks.video.filter(function (v) { return v.asset === a; })[0];
-    S.toEditor();
-    if (c) S.seek(c.start);
-    S.bubble('ember', 'Your clip is on the timeline. Play it, then tell me what to change. I can caption it word by word, tighten it, film the next shot, or write the post.');
-    S.showNext([{ label: 'Add captions', say: 'Add captions from the speech.' }, { label: 'Animated captions', say: 'Make word-by-word animated captions for this clip with the motion engine, in the house look.' }, { label: 'Film the next shot', say: 'Film a second shot that follows this one: a close-up of the product.' }, { label: 'Write the post', say: 'Write the post for this video.' }]);
-  }
 
   /* ---------- open and close ---------- */
   var closing = 0;
@@ -781,9 +1009,9 @@
     if (!P()) return;
     clearTimeout(closing); root.classList.remove('leaving');
     try { localStorage.setItem(SEEN, '1'); } catch (e) {}
-    validate(); root.hidden = false;
+    validate(); sync(); root.hidden = false;
     draw(); renderPanel();
-    if (!G.view) { var n = (G.open && node(G.open)) || G.nodes[0]; V = { x: 0, y: 0, k: 1 }; focusOn(n); world.classList.remove('glide'); } else apply(false);
+    if (!G.view) { V = { x: 0, y: 0, k: 1 }; if (G.open && node(G.open)) focusOn(node(G.open)); else fit(); world.classList.remove('glide'); } else apply(false);
   }
   function close() {
     if (root.hidden || root.classList.contains('leaving')) return;
@@ -791,8 +1019,15 @@
     root.classList.add('leaving');
     closing = setTimeout(function () { root.hidden = true; root.classList.remove('leaving'); }, 430);
   }
-  $('#flow-reset').addEventListener('click', function () { G = fresh(); V = { x: 0, y: 0, k: 1 }; shopTried = false; Object.keys(els).forEach(function (id) { els[id].remove(); delete els[id]; }); draw(); renderPanel(); focusOn(G.nodes[0]); keep(); });
+  $('#flow-reset').addEventListener('click', function () { G = fresh(); delete G.pristine; V = { x: 0, y: 0, k: 1 }; shopTried = false; Object.keys(els).forEach(function (id) { els[id].remove(); delete els[id]; }); sync(); draw(); renderPanel(); focusOn(G.nodes[0]); keep(); });
   window.addEventListener('resize', function () { if (!root.hidden) apply(false); });
   $('#flow .flow-top .orb').innerHTML = S.mascot();
-  window.EmberFlow = { open: open0, close: close, refresh: function () { if (!root.hidden) { draw(); renderPanel(); } }, seen: function () { try { return !!localStorage.getItem(SEEN); } catch (e) { return true; } } };
+  S.onChange(function () {                                    // the project changed (you, or Ember): the canvas follows
+    if (root.hidden || !P()) return;
+    sync(); draw(); keep();
+    var on = G.open && node(G.open);
+    if (!on || on.type === 'media' || on.type === 'final') renderPanel();
+  });
+  window.EmberFlow = { open: open0, close: close, place: place, dropped: dropped, fit: fit, showFinal: function () { var fn = finalNode(); if (fn) open(fn.id); },
+    refresh: function () { if (!root.hidden) { sync(); draw(); renderPanel(); } }, seen: function () { try { return !!localStorage.getItem(SEEN); } catch (e) { return true; } } };
 })();

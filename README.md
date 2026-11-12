@@ -108,7 +108,7 @@ commands ("cut from 2 to 4", "clean it up", "add captions", "export").
 | `styles.css` | Everything visual |
 | `media/` | Rendered clips, Shop previews, workflow stage pictures and the footer art |
 | `studio.html`, `studio.css`, `studio.js` | The studio screen: a menu bar (File, Edit, View, Tools, History, Help), Ember chat, library, preview, timeline, post step. A person has many projects; a new project stays in the workflow until it has a clip |
-| `flow.js`, `flow.css` | Step 1, Create: the flow, a node board you can pan and zoom. Nodes for the subject, who is on camera, what to make, the script, the voice and the film; drag a line out of a node to add the next, or leave Guided on and each finished node grows the next. Then the editor opens |
+| `flow.js`, `flow.css` | The canvas, which is the studio's main screen: a node board you can pan and zoom. Files are media nodes; whatever is wired into the Final video node, in order, is the video. Wiring two nodes together offers what they can make (remake a selling video with an avatar, join clips, lay a voice). Workflow nodes (what to make, script, voice, film) produce new clips. Ember's edits show on the same board |
 | `server/ember.py` | The studio's server: projects, Ember's tools and loop, export |
 | `supabase/migrations/` | The data model for Supabase (Postgres): people, projects, library, the cut, chats, boards, jobs, exports, the ledger, with row level security. Not connected to the studio yet |
 | `supabase/tests/test_schema.py` | Applies the migrations to a throwaway Postgres and checks the rules hold: `uv run supabase/tests/test_schema.py supabase/migrations` |

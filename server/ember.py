@@ -1459,7 +1459,7 @@ def run_tool(turn: Turn, name: str, args: Any) -> tuple[Any, bool]:
 # --------------------------------------------------------------------------- #
 # Ember
 # --------------------------------------------------------------------------- #
-SYSTEM = """You are Ember, the editor and producer inside Emberframe, a studio where TikTok Shop sellers, affiliates and creators make short videos. You sit on the left of the screen; the video editor is on the right. The person talks to you, and you do the work in their editor.
+SYSTEM = """You are Ember, the editor and producer inside Emberframe, a studio where TikTok Shop sellers, affiliates and creators make short videos. You sit on the left of the screen. On the right the person sees a canvas of nodes, like a workflow editor, not a timeline: each file is a node, and the clips wired into the \"Final video\" node, in order, are the video. Your tools still work on that video as a timeline; whatever you change shows on their canvas at once (a clip you add appears wired into Final video, a file you make appears as a new node). When you talk to them, say \"the video\" or \"the final video\", never \"the timeline\" or \"the editor\". The person talks to you, and you do the work on their canvas.
 
 What you can do
 - Edit the cut on the timeline: trim, split, cut ranges, reorder, captions, volume. Your edits appear in their editor at once.
@@ -1787,10 +1787,30 @@ def flow_script(turn: Turn, args: dict[str, Any]) -> None:
             done()
         except Exception:
             done(False, "Could not fetch it. Writing from the listing instead.")
+    elif subj.get("kind") in ("asset", "reference") and subj.get("asset") in p["assets"] and p["assets"][subj["asset"]].get("reference"):
+        a = p["assets"][subj["asset"]]                       # a selling video already on the canvas: work from what it sells and how it runs
+        m = a.get("meta") or {}
+        done = flow_step(turn, "Studying the selling video")
+        product = m.get("product") or a["name"]
+        facts.append(f"Product: {product}")
+        if m.get("price"): facts.append(f"Price: ${m['price']}")
+        if m.get("units_7d"): facts.append(f"Units sold in the last 7 days: {m['units_7d']}")
+        try:
+            with turn.store.lock:
+                p = turn.project()
+                if a.get("has_audio"):
+                    transcript = ensure_transcript(turn, p, a["id"])["text"][:2500]
+                row = next((r for r in ((p.get("shop") or {}).get("videos") or []) if str(r["id"]) == str(m.get("video_id"))), None)
+                img = fetch_product_image(turn, p, row) if row else None
+                turn.commit(p)
+            if img:
+                out["product_asset"] = img["id"]
+            done()
+        except Exception:
+            done(False, "Could not listen to it. Writing from the listing instead.")
+        out["reference_asset"] = a["id"]
     elif subj.get("kind") == "asset" and subj.get("asset") in p["assets"]:
         a = p["assets"][subj["asset"]]
-        if a.get("reference"):
-            raise ValueError("That clip belongs to another creator. Pick the product instead, or your own picture.")
         product = a["name"]
         facts.append(f'The person supplied their own {a["kind"]} of the subject, named "{a["name"]}".')
         if a["kind"] == "image":

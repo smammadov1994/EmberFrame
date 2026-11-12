@@ -161,7 +161,7 @@ body.studio {
 .lib-tabs [role=tab] i { font: 11px var(--mono); font-style: normal; padding: 1px 6px; border-radius: 999px; background: var(--accent); color: var(--on-accent); }
 .lib-tabs [role=tab] i:empty { display: none; }
 .lib-tabs .up { margin-left: auto; }
-.lib-list { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 10px 12px; display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; align-content: start; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.12) transparent; }
+.lib-list { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 10px 12px; display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; align-content: start; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.12) transparent; }
 .lib-list.drop { box-shadow: inset 0 0 0 2px var(--accent); border-radius: 14px; background: var(--accent-tint); }
 .as { position: relative; border-radius: 12px; overflow: hidden; background: #000; cursor: grab; aspect-ratio: 4 / 5; box-shadow: 0 0 0 1px var(--hair); transition: transform 0.25s var(--ease), box-shadow 0.25s; }
 .as:hover { transform: translateY(-2px); box-shadow: 0 0 0 1px var(--hair-2), 0 16px 30px -16px #000; }
@@ -709,3 +709,22 @@ body.in-flow #s-next { display: none; }
 .clip.touched { animation: clip-touched 1.6s ease-out 1; }
 @keyframes clip-touched { 0% { box-shadow: 0 0 0 2px var(--accent), 0 0 26px 2px rgba(242, 90, 43, 0.9); } 100% { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.13), 0 6px 14px -8px #000; } }
 @media (prefers-reduced-motion: reduce) { .acting::after { animation: none; background: rgba(242, 90, 43, 0.55); } .clip.touched { animation: none; } }
+
+/* =====================================================================================
+   The canvas is the studio. The monitor and the timeline are gone from view; the board
+   fills the space beside the media rail, and the player lives in the Final video panel.
+   ===================================================================================== */
+body.canvas .ed-top { padding-left: 0; }
+body.canvas .ed-top > .mon, body.canvas .tl, body.canvas .rz-tl { display: none; }
+body.canvas .lib, body.canvas .rz-rail { bottom: 0; }
+body.canvas .ed > .flow { position: absolute; z-index: 5; left: calc(var(--rail) + 10px); top: 0; right: 0; bottom: 0; border: 1px solid var(--hair); border-radius: var(--r); animation: none; }
+body.canvas #s-next { display: inline-flex; }
+@media (max-width: 760px) {
+  body.canvas .ed { display: flex; flex-direction: column; gap: 10px; }
+  body.canvas .ed > .flow { position: relative; left: 0; height: 82dvh; order: 1; }
+  body.canvas .lib { order: 2; }
+}
+
+/* canvas first: Ember and the media rail are narrower by default, the board gets the room */
+body.canvas .s-body { grid-template-columns: var(--chatw, clamp(300px, 23vw, 440px)) minmax(0, 1fr); }
+body.canvas .ed { --rail: clamp(190px, 16vw, 300px); }
