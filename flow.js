@@ -170,6 +170,7 @@
     }
     G.nodes.forEach(function (n) {                            // a filmed clip sits right after the node that filmed it
       var a = n.type === 'film' && n.d.film && n.d.film.state === 'done' && n.d.film.asset;
+      if (a && p.assets[a] && !mediaNode(a) && Math.abs(fin.x - (n.x + NW + GAP)) < NW + 30 && Math.abs(fin.y - n.y) < NH + 24) fin.x = n.x + 2 * (NW + GAP);   // the final video makes room for the new clip
       if (a && p.assets[a]) { var m = mediaNode(a) || addMedia(a, n.x + NW + GAP, n.y); if (!wired(n.id, m.id)) G.wires.push({ from: n.id, to: m.id }); }
     });
     if (!G.known) { G.known = {}; Object.keys(p.assets).forEach(function (id) { G.known[id] = 1; }); }   // first time: the whole library does not flood the canvas
@@ -541,6 +542,13 @@
         dot.appendChild(mo); wiresEl.appendChild(dot);
       }
     });
+    var fin = finalNode();
+    if (fin && finalShown()) G.nodes.forEach(function (n) {   // a clip being filmed is on its way to the final video: the wire shows before the clip exists
+      if (n.type !== 'film' || !n.d.film || n.d.film.state !== 'run') return;
+      var d = curve(n.x + NW, n.y + NH / 2, fin.x, fin.y + NH / 2);
+      wiresEl.appendChild(sv('path', { 'class': 'gw soon', d: d }));
+      var dot = sv('circle', { 'class': 'gw-ember', r: 4.5 }); dot.appendChild(sv('animateMotion', { dur: '2.2s', repeatCount: 'indefinite', path: d })); wiresEl.appendChild(dot);
+    });
   }
   wiresEl.addEventListener('dblclick', function (e) {
     var i = e.target.getAttribute && e.target.getAttribute('data-w'); if (i === null || i === undefined) return;
@@ -597,13 +605,14 @@
   function paint(n, e) {
     if (n.type === 'media' || n.type === 'final') return void paintMedia(n, e);
     var m = T[n.type], done = isDone(n), need = needs(n), sum = summary(n), box = e.querySelector('.gn-s');
-    e.className = 'gn ' + n.type + (done ? ' done' : '') + (n.id === G.open ? ' open' : '') + (need.length ? ' need' : '') + (e.classList.contains('new') ? ' new' : '') +
+    var cur = !G.open && current(), wait = !!cur && cur.id === n.id;   // nothing is open: the step that is waiting asks to be clicked
+    e.className = 'gn ' + n.type + (done ? ' done' : '') + (n.id === G.open ? ' open' : '') + (wait ? ' next' : '') + (need.length ? ' need' : '') + (e.classList.contains('new') ? ' new' : '') +
       (n.type === 'film' && n.d.film && n.d.film.state === 'run' ? ' busy' : '');
     e.style.left = n.x + 'px'; e.style.top = n.y + 'px';
     var ic = e.querySelector('.fn-ic'), pic = done && sum && sum.img;   // a finished step shows what was chosen: its picture and its name
     ic.classList.toggle('pic', !!pic); ic.style.backgroundImage = pic ? 'url("' + sum.img + '")' : ''; ic.innerHTML = pic ? '' : svg(m.icon);
     e.querySelector('b').textContent = done && sum ? sum.t : done || sum ? m.title : m.ask;
-    e.querySelector('.fn-t small').textContent = done ? m.title : need.length ? 'Waiting' : n.id === G.open ? 'Now' : 'To do';
+    e.querySelector('.fn-t small').textContent = done ? m.title : need.length ? 'Waiting' : n.id === G.open ? 'Now' : wait ? (n.type === 'subject' ? 'Start here' : 'Next: click to open') : 'To do';
     e.title = done && sum ? m.title + ': ' + sum.t : '';
     box.textContent = '';
     if (done) return;                                        // a finished node says so with its green border, nothing more
@@ -618,8 +627,9 @@
       e.hidden = !finalShown();
       var clips = p.tracks.video.length;
       e.className = cls + (clips ? ' has' : ''); ic.style.backgroundImage = ''; ic.innerHTML = svg(I.play);
-      small.textContent = 'Final video'; b.textContent = clips ? 'Your video' : 'Nothing wired in yet';
-      box.appendChild(el('p', { text: clips ? clips + ' clip' + (clips === 1 ? '' : 's') + ' · ' + S.fmt(p.duration) + (p.tracks.captions.length ? ' · captions' : '') : 'Wire a clip into this node.' }));
+      var filming = !clips && G.nodes.some(function (m) { return m.type === 'film' && m.d.film && m.d.film.state === 'run'; });
+      small.textContent = 'Final video'; b.textContent = clips ? 'Your video' : filming ? 'Waiting for your clip' : 'Nothing wired in yet';
+      box.appendChild(el('p', { text: clips ? clips + ' clip' + (clips === 1 ? '' : 's') + ' · ' + S.fmt(p.duration) + (p.tracks.captions.length ? ' · captions' : '') : filming ? 'It lands here as soon as filming ends.' : 'Wire a clip into this node.' }));
       return;
     }
     var a = p.assets[n.d.asset]; if (!a) return;
@@ -643,7 +653,12 @@
     var on = G.open && node(G.open), left = G.nodes.filter(function (n) { return n.type !== 'final' && !isDone(n); }).length;
     $('#flow-step').textContent = on ? T[on.type].title : left ? left + ' to do' : 'Your canvas';
     if (on) { var nd = needs(on); say(nd.length ? 'This one needs ' + nd.map(function (x) { return T[x.type].title.toLowerCase(); }).join(' and ') + ' first. Add it from here, or drag a wire into this node.' : guideFor(on)); }
-    else say('Drag media in from the left or from your computer, wire nodes together, or tell Ember what to do. Whatever is wired into Final video is your video.');
+    else {
+      var cur = current();
+      say(!cur ? 'Drag media in from the left or from your computer, wire nodes together, or tell Ember what to do. Whatever is wired into Final video is your video.'
+        : cur.type === 'subject' ? 'Step 1: click "What is the video about?" to pick a product, or drop a product picture on the canvas. Or tell Ember below and it sets the video up.'
+        : 'Step ' + (ORDER.indexOf(cur.type) + 1) + ': click "' + T[cur.type].ask + '" to carry on.');
+    }
   }
   function guideFor(n) {
     if (n.type === 'film' && n.d.film && n.d.film.state === 'done') return 'Filmed. The clip is wired into your final video.';
@@ -1220,6 +1235,7 @@
     if (!P()) return;
     clearTimeout(closing); root.classList.remove('leaving');
     try { localStorage.setItem(SEEN, '1'); } catch (e) {}
+    G.open = null;                                            // the page opens on the board itself; a panel opens when a step is clicked, or when the flow leads on
     validate(); sync(); root.hidden = false;
     draw(); renderPanel();
     if (claimed) { var c0 = claimed; claimed = null; if (G.guided && G.open === c0.id) complete(c0); }

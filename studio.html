@@ -9,8 +9,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="styles.css?v=17">
-<link rel="stylesheet" href="studio.css?v=45">
-<link rel="stylesheet" href="flow.css?v=14">
+<link rel="stylesheet" href="studio.css?v=46">
+<link rel="stylesheet" href="flow.css?v=16">
 </head>
 <body class="studio">
 
@@ -43,23 +43,11 @@
       <button type="button" class="chat-new" id="chat-clear" title="Start a clean chat about this same video. This one is kept in History.">
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>New chat
       </button>
+      <button type="button" class="icon-btn chat-hide" id="chat-hide" title="Hide the chat" aria-label="Hide the chat"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12 5l-5 5 5 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     </div>
     <div class="chat-log" id="chat-log" aria-live="polite"></div>
     <div class="chat-foot">
       <div class="chat-chips" id="chat-chips"></div>
-      <form class="composer one" id="chat-form">
-        <label class="icon-btn" title="Add a file. You can also drop files anywhere on the page." aria-label="Add a file">
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M14.5 9.5l-5 5a3 3 0 0 1-4.2-4.2l6-6a2 2 0 0 1 2.8 2.8l-5.6 5.6a1 1 0 0 1-1.4-1.4l4.9-4.9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <input type="file" id="upload-chat" accept="video/*,audio/*,image/*" multiple hidden>
-        </label>
-        <textarea id="chat-input" rows="1" placeholder="Tell Ember what to do" aria-label="Message Ember"></textarea>
-        <button type="submit" class="send" id="chat-send" aria-label="Send">
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 15.5v-11M5.5 9L10 4.5 14.5 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </button>
-        <button type="button" class="send stop" id="chat-stop" aria-label="Stop" hidden>
-          <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="6" y="6" width="8" height="8" rx="2" fill="currentColor"/></svg>
-        </button>
-      </form>
     </div>
   </aside>
 
@@ -247,6 +235,23 @@
   </div>
 </div>
 
+<!-- Ember's message field sits at the bottom of the page. The chat session opens on the left when you talk. -->
+<div class="dock" id="dock">
+  <button type="button" class="dock-orb" id="dock-orb" title="Show or hide the chat with Ember" aria-label="Show or hide the chat with Ember" aria-expanded="false"><span class="orb" aria-hidden="true"></span><i class="dot" aria-hidden="true"></i></button>
+  <form class="composer one" id="chat-form">
+    <label class="icon-btn" title="Add a file. You can also drop files anywhere on the page." aria-label="Add a file">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M14.5 9.5l-5 5a3 3 0 0 1-4.2-4.2l6-6a2 2 0 0 1 2.8 2.8l-5.6 5.6a1 1 0 0 1-1.4-1.4l4.9-4.9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <input type="file" id="upload-chat" accept="video/*,audio/*,image/*" multiple hidden>
+    </label>
+    <textarea id="chat-input" rows="1" placeholder="Tell Ember what to do" aria-label="Message Ember"></textarea>
+    <button type="submit" class="send" id="chat-send" aria-label="Send">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 15.5v-11M5.5 9L10 4.5 14.5 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <button type="button" class="send stop" id="chat-stop" aria-label="Stop" hidden>
+      <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="6" y="6" width="8" height="8" rx="2" fill="currentColor"/></svg>
+    </button>
+  </form>
+</div>
 <div class="drop-veil" id="drop-veil" hidden><div><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5V5M7.5 9.500L12 5l4.500 4.500M5 18.500h14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><b id="drop-text">Drop to add to your library</b></div></div>
 <div class="menu-pop" id="menu-pop" role="menu" hidden></div>
 <div class="dlg" id="dlg" hidden><div class="dlg-in" id="dlg-in" role="dialog" aria-modal="true"></div></div>
@@ -261,7 +266,7 @@
   </div>
 </div>
 
-<script src="studio.js?v=45"></script>
-<script src="flow.js?v=23"></script>
+<script src="studio.js?v=46"></script>
+<script src="flow.js?v=25"></script>
 </body>
 </html>

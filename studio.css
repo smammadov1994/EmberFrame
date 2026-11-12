@@ -728,3 +728,50 @@ body.canvas #s-next { display: inline-flex; }
 /* canvas first: Ember and the media rail are narrower by default, the board gets the room */
 body.canvas .s-body { grid-template-columns: var(--chatw, clamp(300px, 23vw, 440px)) minmax(0, 1fr); }
 body.canvas .ed { --rail: clamp(190px, 16vw, 300px); }
+
+/* ---------- the chat: a field at the bottom of the page; the session opens on the left when you talk ---------- */
+.dock { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 48; display: flex; align-items: flex-end; gap: 10px; width: min(600px, calc(100vw - 28px)); }
+.dock .composer { flex: 1; min-width: 0; border-radius: 24px; border-color: rgba(255, 255, 255, 0.14); background: rgba(10, 9, 8, 0.9); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+  box-shadow: 0 26px 70px -22px #000, 0 0 0 1px rgba(255, 255, 255, 0.03) inset; }
+.dock .composer.one { padding: 7px 8px 7px 6px; }
+.dock-orb { position: relative; flex: none; display: grid; place-items: center; width: 52px; height: 52px; padding: 0; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.14); background: rgba(10, 9, 8, 0.9);
+  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); box-shadow: 0 20px 50px -20px #000; cursor: pointer; transition: border-color 0.2s, transform 0.25s var(--ease); }
+.dock-orb:hover { border-color: rgba(242, 90, 43, 0.8); transform: translateY(-2px); }
+.dock-orb[aria-expanded=true] { border-color: rgba(242, 90, 43, 0.6); }
+.dock-orb .orb { width: 34px; height: 34px; }
+.dock-orb .dot { position: absolute; right: 2px; top: 2px; width: 11px; height: 11px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px #0A0908, 0 0 14px rgba(242, 90, 43, 0.9); opacity: 0; transform: scale(0.4); transition: opacity 0.25s, transform 0.3s var(--ease); }
+.dock-orb.unread .dot { opacity: 1; transform: scale(1); animation: dot-beat 1.8s ease-in-out infinite; }
+@keyframes dot-beat { 50% { transform: scale(1.25); } }
+body.chat-off .s-body, body.chat-off.canvas .s-body { grid-template-columns: minmax(0, 1fr); }
+body.chat-off .chat, body.chat-off .rz-chat { display: none; }
+.chat { animation: chat-in 0.42s var(--ease) both; }
+@keyframes chat-in { from { opacity: 0; transform: translateX(-26px); } }
+.chat-foot { padding-bottom: 86px; }                         /* the dock sits over the bottom of the page: the log ends above it */
+@media (max-width: 1700px) { .flow .flow-zoom { bottom: 86px; } }   /* on a narrower page the zoom buttons move up, clear of the dock */
+.chat-hide { margin-left: 2px; }
+.flow-panel .fp-body { padding-bottom: 92px; }                /* same for the step panel */
+
+/* the session: black, etched */
+.panel.chat { background: #050505; border-color: rgba(255, 255, 255, 0.08); }
+.chat::after { content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48'%3E%3Cg fill='none' stroke-width='1'%3E%3Cpath d='M0 25 24 1 48 25 24 49Z' stroke='%23000' stroke-opacity='.95'/%3E%3Cpath d='M0 24 24 0 48 24 24 48Z' stroke='%23fff' stroke-opacity='.055'/%3E%3Cpath d='M12 25 24 13 36 25 24 37Z' stroke='%23000' stroke-opacity='.9'/%3E%3Cpath d='M12 24 24 12 36 24 24 36Z' stroke='%23fff' stroke-opacity='.035'/%3E%3C/g%3E%3Ccircle cx='24' cy='24' r='1' fill='%23fff' fill-opacity='.07'/%3E%3Ccircle cx='0' cy='0' r='1' fill='%23fff' fill-opacity='.05'/%3E%3Ccircle cx='48' cy='48' r='1' fill='%23fff' fill-opacity='.05'/%3E%3C/svg%3E") 0 0 / 48px 48px;
+  -webkit-mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.5), #000 26%, #000 72%, rgba(0, 0, 0, 0.25)); mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.5), #000 26%, #000 72%, rgba(0, 0, 0, 0.25)); }
+.chat::before { z-index: 1; }
+.m.you { background: #141312; border-color: rgba(255, 255, 255, 0.1); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 10px 26px -18px #000; }
+
+/* replies arrive */
+.chat-log > .m.you { animation: you-in 0.3s var(--ease) both; transform-origin: 100% 100%; }
+.chat-log > .m.ember { animation: ember-in 0.5s var(--ease) both; }
+.chat-log > .ask, .chat-log > .nt, .chat-log > .next { animation: card-in 0.45s var(--ease) both; }
+.act .stp { animation: stp-in 0.3s var(--ease) both; }
+@keyframes you-in { from { opacity: 0; transform: translateY(12px) scale(0.92); } }
+@keyframes ember-in { from { opacity: 0; transform: translateY(8px); filter: blur(7px); } }
+@keyframes card-in { from { opacity: 0; transform: translateY(14px) scale(0.97); } }
+@keyframes stp-in { from { opacity: 0; transform: translateX(-8px); } }
+.m.ember.live { text-shadow: 0 0 22px rgba(242, 90, 43, 0.16); }
+.m.ember.wait { display: flex; gap: 6px; align-items: center; height: 26px; padding-left: 2px; }
+.m.ember.wait i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 12px rgba(242, 90, 43, 0.8); animation: wait-dot 1.1s ease-in-out infinite; }
+.m.ember.wait i:nth-child(2) { animation-delay: 0.16s; } .m.ember.wait i:nth-child(3) { animation-delay: 0.32s; }
+@keyframes wait-dot { 0%, 100% { opacity: 0.25; transform: translateY(0) scale(0.8); } 40% { opacity: 1; transform: translateY(-5px) scale(1.1); } }
+@media (max-width: 760px) { .dock { bottom: 10px; } .dock-orb { width: 46px; height: 46px; } }
+@media (prefers-reduced-motion: reduce) { .chat, .chat-log > *, .act .stp, .m.ember.wait i, .dock-orb.unread .dot { animation: none !important; } }

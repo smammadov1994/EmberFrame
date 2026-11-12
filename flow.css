@@ -31,6 +31,7 @@
 .gw { fill: none; stroke: rgba(255, 255, 255, 0.2); stroke-width: 2; stroke-linecap: round; stroke-dasharray: 5 7; }
 .gw.on { stroke: var(--accent); stroke-dasharray: none; filter: drop-shadow(0 0 5px rgba(242, 90, 43, 0.65)); }
 .gw.temp { stroke: #FFB08E; stroke-dasharray: 6 6; animation: gw-dash 0.5s linear infinite; }
+.gw.soon { stroke: #FFB08E; stroke-dasharray: 6 6; opacity: 0.85; animation: gw-dash 0.9s linear infinite; }   /* filming: the clip is on its way to the final video */
 @keyframes gw-dash { to { stroke-dashoffset: -12; } }
 .gw-hit { fill: none; stroke: transparent; stroke-width: 16; pointer-events: stroke; cursor: pointer; }
 .gw-hit:hover { stroke: rgba(242, 90, 43, 0.18); }
@@ -100,6 +101,10 @@
 .flow-toast[hidden] { display: none; }
 @keyframes toast-in { from { opacity: 0; transform: translate(-50%, -8px); } }
 .gn.nudge { animation: gn-nudge 0.45s ease-in-out 2; border-color: var(--accent); }
+.gn.next { border-color: rgba(242, 90, 43, 0.85); cursor: pointer; animation: gn-next 2.4s ease-in-out infinite; }   /* nothing is open: this step is waiting for a click */
+.gn.next .fn-t small { color: var(--accent-text); }
+@keyframes gn-next { 0%, 100% { box-shadow: 0 0 0 0 rgba(242, 90, 43, 0), 0 22px 50px -30px #000; } 50% { box-shadow: 0 0 0 7px rgba(242, 90, 43, 0.16), 0 26px 60px -28px rgba(242, 90, 43, 0.55); } }
+@media (prefers-reduced-motion: reduce) { .gn.next, .gn.nudge { animation: none; } }
 @keyframes gn-nudge { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-7px); } 75% { transform: translateX(7px); } }
 .gn[hidden] { display: none; }
 @keyframes fp-in { from { opacity: 0; transform: translateX(30px); } }

@@ -43,7 +43,7 @@
     document.head.appendChild(l);
   })();
   var orbEl = $('#orb'), happyTimer = 0, lookAt = 0;
-  function mood(m) { ['busy', 'talk', 'happy'].forEach(function (c) { orbEl.classList.toggle(c, c === m); }); }
+  function mood(m) { $$('#orb, #dock-orb .orb').forEach(function (o) { ['busy', 'talk', 'happy'].forEach(function (c) { o.classList.toggle(c, c === m); }); }); }
   document.addEventListener('pointermove', function (e) {     // Ember watches the pointer
     var now = Date.now(); if (now - lookAt < 50) return; lookAt = now;
     $$('.orb').forEach(function (o) {
@@ -260,7 +260,7 @@
   /* ---------- drop files anywhere: from a folder onto the library, the timeline or Ember ---------- */
   var veil = $('#drop-veil'), dragDepth = 0;
   function hasFiles(e) { return !!e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') >= 0; }
-  function dropPlace(e) { var t = e.target && e.target.closest ? e.target : null; return !t ? 'library' : t.closest('.flow-panel') ? 'library' : t.closest('#flow-view') ? 'canvas' : t.closest('.chat') ? 'chat' : 'library'; }
+  function dropPlace(e) { var t = e.target && e.target.closest ? e.target : null; return !t ? 'library' : t.closest('.flow-panel') ? 'library' : t.closest('#flow-view') ? 'canvas' : t.closest('.chat, .dock') ? 'chat' : 'library'; }
   function veilOff() { dragDepth = 0; veil.hidden = true; $$('.drop-here').forEach(function (n) { n.classList.remove('drop-here'); }); }
   window.addEventListener('dragenter', function (e) { if (!hasFiles(e) || !P) return; e.preventDefault(); dragDepth++; veil.hidden = false; });
   window.addEventListener('dragover', function (e) {
@@ -646,6 +646,7 @@
     log.appendChild(rcpt);                                    // keep it under the latest step
   }
   function onEvent(ev) {
+    if (waitEl && ev.type !== 'progress') waiting(false);
     if (ev.type === 'text') {
       if (!msgEl) { msgEl = bubble('ember live', ''); actEl = null; }
       msgEl._raw += ev.delta; msgEl.innerHTML = md(msgEl._raw); scrollLog();
@@ -717,7 +718,7 @@
       el('button', { type: 'button', class: 'btn btn-accent', text: 'Approve', onclick: function () { answer(true); } }),
       el('button', { type: 'button', class: 'btn', text: 'Not now', onclick: function () { answer(false); } })
     ]);
-    card._row = row; card.appendChild(row); log.appendChild(card); scrollLog();
+    card._row = row; card.appendChild(row); log.appendChild(card); chatOpen(true); scrollLog();
   }
   function expire(card) {                                     // the turn ended with this card unanswered: it must not sit there as a dead button
     var ev = card._ev, cost = ev.cost !== null && ev.cost !== undefined ? Number(ev.cost) : null;
@@ -734,6 +735,7 @@
   }
   var pendingPlan = null;
   function endTurn() {
+    waiting(false);
     if (msgEl) msgEl.classList.remove('live');
     $$('.act', log).forEach(function (a) {                    // long runs fold into one line
       if (a._done) return; a._done = true;
@@ -756,7 +758,26 @@
     });
     scrollLog();
   }
+  /* ---------- the chat: a field at the bottom of the page; the session opens on the left when you talk ---------- */
+  var dockOrb = $('#dock-orb'), waitEl = null;
+  $('.orb', dockOrb).innerHTML = mascot();
+  function chatIsOpen() { return !document.body.classList.contains('chat-off'); }
+  function chatOpen(on) {
+    if (chatIsOpen() === !!on) return;
+    document.body.classList.toggle('chat-off', !on);
+    dockOrb.setAttribute('aria-expanded', String(!!on));
+    if (on) { dockOrb.classList.remove('unread'); scrollLog(); }
+    window.dispatchEvent(new Event('resize'));               // the board has more, or less, room now
+  }
+  document.body.classList.add('chat-off');                   // the page opens with just the field
+  dockOrb.addEventListener('click', function () { chatOpen(!chatIsOpen()); });
+  $('#chat-hide').addEventListener('click', function () { chatOpen(false); });
+  function waiting(on) {                                      // three embers while Ember has not answered yet
+    if (waitEl) { waitEl.remove(); waitEl = null; }
+    if (on) { waitEl = el('div', { class: 'm ember wait', 'aria-label': 'Ember is thinking' }, [el('i'), el('i'), el('i')]); log.appendChild(waitEl); scrollLog(); }
+  }
   function stream(path, body) {                               // POST and read a server-sent event stream
+    chatOpen(true); waiting(true);
     msgEl = null; actEl = null; stepMap = {}; rcpt = null; nextEl = null; turnPath = path;
     $$('.next', log).forEach(function (n) { n.classList.add('used'); });
     turnStart = describe(); turnStartState = snapshot();
@@ -781,7 +802,7 @@
   function send(text, approved) {                             // approved: a price the person just agreed to by pressing a priced button
     text = (text || '').trim();
     if (!text || busy || !P) return;
-    bubble('you', text);
+    chatOpen(true); bubble('you', text); waiting(true);       // the session opens the moment you talk
     input.value = ''; input.style.height = '';
     var viewNow = isBrowse() ? 'browse' : 'editor';
     if (isBrowse() && text.length < 90 && /\b(back|return|go|take me|bring me)\b.{0,30}\beditor\b|\b(see|show|open)\b.{0,16}\beditor\b|\bclose (this|that|it|the (view|canvas|videos|grid))\b/i.test(text)) closeBrowse();
@@ -919,6 +940,7 @@
       row.style.setProperty('--k', k); return row;
     })));
     log.appendChild(card); scrollLog();
+    if (!chatIsOpen()) dockOrb.classList.add('unread');       // Ember has a note: a dot on the orb, not a panel in the way
   }
   function fallbackNext() {                                   // when Ember offers none: the obvious next moves from here
     var out = [], sv = shopVideos();
