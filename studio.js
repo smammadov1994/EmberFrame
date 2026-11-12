@@ -138,6 +138,11 @@
     if (P) drawLibrary();
   }
   var chatTaker = null, forEl = null;
+  var stepping = false;
+  function railWide(on) {                                     // a step is being worked on in the rail: give it room
+    if (stepping === !!on) return;
+    stepping = !!on; document.body.classList.toggle('stepping', stepping); applySizes();
+  }
   function chatPoint(on, o, quiet) {                          // the message field answers a step on the board. o: { label, hint, take(text) -> reply, cancel() }
     var f = $('#chat-form'), box = $('#chat-input'), was = chatTaker;
     chatTaker = on && o && o.take ? o : null;
@@ -836,7 +841,7 @@
   function placeDock() {                                      // the field sits at the bottom centre of the board itself, never over the media rail, the chat or the step panel
     var d = $('#dock'), v = $('#flow-view'), r = v ? v.getBoundingClientRect() : null;
     if (!r || !r.width || innerWidth <= 760) { d.style.left = ''; d.style.width = ''; return; }
-    var pan = $('#flow-panel'), pw = pan && !pan.hidden ? pan.offsetWidth + 16 : 0, free = Math.max(280, r.width - pw - 24), w = Math.min(600, free);
+    var pan = $('#flow-panel'), pw = pan && !pan.hidden && pan.closest('#flow') ? pan.offsetWidth + 16 : 0, free = Math.max(280, r.width - pw - 24), w = Math.min(600, free);
     d.style.width = w + 'px'; d.style.left = Math.round(r.left + (r.width - pw) / 2) + 'px';
     var z = $('.flow-zoom'), zw = z ? z.offsetWidth + 32 : 0;
     $('#flow').classList.toggle('zoom-up', (r.width - pw - w) / 2 < zw);
@@ -1439,7 +1444,7 @@
     var put = function (node, name, v) { if (phone || !v) node.style.removeProperty(name); else node.style.setProperty(name, Math.round(v) + 'px'); };
     put(body, '--chatw', sizes.chat && clamp(sizes.chat, 300, Math.max(300, Math.min(680, innerWidth - 640))));
     var railW = sizes.rail && clamp(sizes.rail, 170, Math.max(170, Math.min(560, edBox.clientWidth - 330)));
-    if (picking) railW = Math.max(railW || 0, Math.min(440, Math.max(170, edBox.clientWidth - 330)));   // choosing happens in the rail: give it room
+    if (picking || stepping) railW = Math.max(railW || 0, Math.min(440, Math.max(170, edBox.clientWidth - 330)));   // choosing happens in the rail: give it room
     put(edBox, '--rail', railW);
     put(edBox, '--tlh', sizes.tl && clamp(sizes.tl, 236, Math.max(236, Math.min(600, edBox.clientHeight - 230))));
     measure();
@@ -1536,7 +1541,7 @@
   /* ---------- what the guided flow (flow.js) may use ---------- */
   window.EmberStudio = { $: $, $$: $$, el: el, svg: svg, api: api, headers: headers, mascot: mascot, fmt: fmt, clamp: clamp, user: user,
     project: function () { return P; }, status: function () { return STATUS; }, setProject: setProject, setAvatar: setAvatar,
-    acting: function () { return busy; }, pick: pickFor, chatPoint: chatPoint,
+    acting: function () { return busy; }, pick: pickFor, chatPoint: chatPoint, railWide: railWide,
     bubble: bubble, showNext: showNext, seek: seek, projectId: projectId, newProject: newProject, quiet: quiet, send: send,
     onChange: function (fn) { changeListeners.push(fn); },
     ask: function (text) { input.value = text; input.focus(); input.setSelectionRange(text.length, text.length); },

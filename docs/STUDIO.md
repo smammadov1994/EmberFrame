@@ -11,11 +11,11 @@ After a change to `server/ember.py` the server must be stopped and started again
 
 | Part | What it is |
 |---|---|
-| The board (canvas) | The whole studio. Steps and files are nodes; whatever is wired into **Final video**, in order, is the video. |
+| The board (canvas) | The whole right side, and the whole studio. Steps and files are nodes; whatever is wired into **Final video**, in order, is the video. |
 | The rail (left) | **Media** (your files) and **Shop** (TikTok Shop videos, with search and Trending / Most viewed). Step 1 is chosen here. |
 | The message field (bottom centre) | The only place to type to Ember. Ember's face beside it shows or hides the chat session. |
 | The chat session (left, hidden until you talk) | The conversation with Ember: replies, steps, approval cards. |
-| The step panel (right) | Opens for steps 2 to 6 while that step is being worked on. Step 1 has no panel. |
+| The step panel (in the rail) | Steps 2 to 6, a file's details and Final video open in the left rail, over Media and Shop, and the rail widens. Close it (× or Esc) to get Media and Shop back. Step 1 uses Media and Shop themselves. On a phone it is a sheet at the bottom. |
 
 Nothing opens by itself when the page loads. The step that is waiting says "Start here" and pulses.
 

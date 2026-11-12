@@ -49,6 +49,10 @@
     { id: 'free', icon: I.spark, t: 'My own idea', d: 'Describe any shot and we film it.' }
   ];
 
+  /* ---------- the step panel lives in the left rail: the board keeps the whole right side ---------- */
+  var docked = false;
+  (function () { var lib = $('#lib'); if (lib && window.innerWidth > 760) { lib.appendChild(panel); panel.classList.add('in-rail'); docked = true; } })();
+
   /* ---------- the graph ---------- */
   function rid() { return 'n' + Math.random().toString(36).slice(2, 8); }
   function mk(type, x, y) { return { id: rid(), type: type, x: Math.round(x), y: Math.round(y), d: type === 'subject' ? { tab: 'shop', sort: 'trending' } : type === 'format' ? { seconds: 8 } : {} }; }
@@ -558,7 +562,7 @@
     $('#flow-pct').textContent = Math.round(V.k * 100) + '%';
   }
   function room() {                                          // the part of the board not covered by the open panel
-    var r = view.getBoundingClientRect(), phone = window.innerWidth <= 760, pw = !panel.hidden && !phone ? panel.offsetWidth + 24 : 0;
+    var r = view.getBoundingClientRect(), phone = window.innerWidth <= 760, pw = !panel.hidden && !phone && !docked ? panel.offsetWidth + 24 : 0;
     if (r.width - pw < NW + 40) pw = 0;                        // the panel covers nearly the whole board (a narrow window): centre on the board itself
     return { w: r.width - pw, h: phone && !panel.hidden ? r.height * 0.42 : r.height, left: r.left, top: r.top };
   }
@@ -896,6 +900,7 @@
   function renderPanel() {
     var n = G.open && node(G.open);
     S.parkMonitor();                                          // the preview player lives in the Final panel only while that is open
+    if (S.railWide) S.railWide(!!n && n.type !== 'subject' && docked);   // the rail gets room while a step is worked on in it
     if (n && n.type === 'subject') { panel.hidden = true; root.classList.remove('has-panel'); return void pickSubject(n); }   // step one has no panel: the left rail is where it is chosen
     S.pick(null);
     panel.hidden = !n; root.classList.toggle('has-panel', !!n);
