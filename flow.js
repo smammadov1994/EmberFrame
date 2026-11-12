@@ -631,7 +631,7 @@
     if (n.type === 'subject' && d.subject) { t = d.subject.title || 'An idea'; img = d.subject.poster || ''; s = d.subject.kind === 'shop' ? (d.subject.price ? money(d.subject.price) + ' · ' : '') + 'TikTok Shop' : d.subject.kind === 'asset' ? 'Your own' : 'An idea'; }
     if (n.type === 'creator' && d.creator) { t = d.creator.kind === 'none' ? 'No one on camera' : d.creator.kind === 'describe' ? d.creator.text : (d.creator.title || 'My avatar'); img = d.creator.poster || ''; s = d.creator.kind === 'avatar' ? 'Your creator' : d.creator.kind === 'describe' ? 'Described' : 'Product only'; }
     if (n.type === 'format' && d.make === 'asis') { t = 'Use it as it is'; s = 'No filming'; }
-    else if (n.type === 'format' && d.make) { t = MAKES.filter(function (x) { return x.id === d.make; })[0].t; s = d.seconds + ' seconds · ' + money(cost(d.seconds)); }
+    else if (n.type === 'format' && d.make) { t = MAKES.filter(function (x) { return x.id === d.make; })[0].t + (d.look === 'cinematic' ? ', cinematic' : ''); s = d.seconds + ' seconds · ' + money(cost(d.seconds)); }
     if (n.type === 'script' && d.script) { t = d.script.line ? '"' + d.script.line + '"' : d.script.shot; s = d.script.line ? d.script.line.split(/\s+/).length + ' words' : 'No speech'; }
     if (n.type === 'voice' && d.voice) { t = d.voice.kind === 'model' ? 'The presenter speaks' : d.voice.kind === 'fish' ? d.voice.title : 'My own voice'; s = d.voice.kind === 'model' ? 'Lips match' : 'Voiceover'; }
     if (n.type === 'film' && d.film) { c = ctx(n.id); t = d.film.state === 'done' ? 'Filmed' : d.film.state === 'run' ? 'Filming now' : 'Did not finish'; s = d.film.state === 'done' ? 'In your final video' : d.film.state === 'run' ? 'A few minutes' : 'Open to try again'; img = d.film.state === 'done' && has(d.film.asset) ? thumb(P().assets[d.film.asset]) : ''; }
@@ -1151,6 +1151,11 @@
       area.addEventListener('input', function () { d.idea = area.value; keep(); });
       box.appendChild(el('span', { class: 'f-lab' }, ['Describe the shot'])); box.appendChild(area);
     }
+    var look = d.look || (nobody ? 'cinematic' : 'phone');
+    box.appendChild(el('span', { class: 'f-lab' }, ['Look']));
+    box.appendChild(seg([['phone', 'Phone footage'], ['cinematic', 'Cinematic commercial']], look, function (v) { d.look = v; d.ok = false; changed(n); keep(); refresh(n); }));
+    box.appendChild(el('p', { class: 'f-note', text: look === 'cinematic' ? 'Shot like an advert: a designed camera move, shaped light, shallow focus. It renders at the highest quality, so it takes longer. Same price.'
+      : 'Looks like a creator filmed it on a phone. This is what sells on TikTok Shop.' }));
     box.appendChild(el('span', { class: 'f-lab' }, ['Length', el('em', { html: '<b>' + money(cost(d.seconds)) + '</b> to film' })]));
     box.appendChild(seg([6, 8, 10, 12, 15].map(function (s) { return [s, s + 's']; }), d.seconds, function (v) { d.seconds = v; d.ok = false; changed(n); keep(); refresh(n); }));
     box.appendChild(el('div', { class: 'f-foot' }, [el('span', { class: 'grow' }),
@@ -1167,7 +1172,8 @@
     if (writing) return;
     var c = ctx(n.id), cr = (c.creator && c.creator.d.creator) || { kind: 'none' }, f = c.format.d, vo = c.voice && c.voice.d.voice;
     writing = n.id; steps = []; delete scriptErr[n.id]; n.d.script = null; n.d.ok = false; refresh(n);
-    sse('flow_script', { subject: c.subject.d.subject, creator: cr, make: f.make, seconds: f.seconds, idea: f.make === 'free' ? f.idea : '', voice: vo || null }, function (ev) {
+    sse('flow_script', { subject: c.subject.d.subject, creator: cr, make: f.make, seconds: f.seconds, idea: f.make === 'free' ? f.idea : '', voice: vo || null,
+      look: f.look || (cr.kind === 'none' ? 'cinematic' : 'phone') }, function (ev) {
       if (ev.type === 'step') {
         if (ev.state === 'run') steps.push({ id: ev.id, label: ev.label, state: 'run' });
         else steps.forEach(function (s) { if (s.id === ev.id) { s.state = ev.state; s.detail = ev.detail; } });
@@ -1310,7 +1316,7 @@
     n.d.film = { state: 'run', note: 'Sending it to our GPU', t0: Date.now() }; refresh(n);
     clearInterval(filmTick);
     filmTick = setInterval(function () { var t = $('#f-film-time'); if (t && n.d.film && n.d.film.state === 'run') t.textContent = Math.round((Date.now() - n.d.film.t0) / 1000) + 's'; }, 1000);
-    sse('flow_film', { line: sc.line, shot: sc.shot, seconds: f.seconds, name: sc.name, voice: vo,
+    sse('flow_film', { line: sc.line, shot: sc.shot, seconds: f.seconds, name: sc.name, voice: vo, look: f.look || (cr.kind === 'none' ? 'cinematic' : 'phone'),
       creator_asset: cr.kind === 'avatar' ? cr.asset : null, creator_text: cr.kind === 'describe' ? cr.text : '',
       product_asset: sc.product_asset || (sub.kind === 'asset' && has(sub.asset) && P().assets[sub.asset].kind === 'image' ? sub.asset : null),
       fresh: false, approved: price }, function (ev) {

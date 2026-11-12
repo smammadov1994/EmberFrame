@@ -2198,6 +2198,7 @@ def flow_script(turn: Turn, args: dict[str, Any]) -> None:
            f"The presenter, as the person describes them: {str(cre.get('text') or '')[:300]}" if cre.get("kind") == "describe" else
            "Nobody is on screen.")
     ask = "\n".join([FLOW_MAKES["showcase"] if cre.get("kind") == "none" and make != "free" else FLOW_MAKES[make], who,
+                     FLOW_LOOKS[look_of(args, cre.get("kind") == "none")],
                      f"Length: {seconds:.0f} seconds. Word limit for the line: {int(seconds * 2.4)} words."] +
                     (["The line is a voiceover recorded separately. Nobody speaks on camera: write the shot with the presenter silent, mouth closed, "
                       "reacting and gesturing, and still write the line (also for a product showcase)."] if voiceover else []) + facts +
@@ -2249,6 +2250,7 @@ def flow_film(turn: Turn, args: dict[str, Any]) -> None:
     before = [c["id"] for c in p["tracks"]["video"]]
     turn.preapproved = cost
     res = t_generate_clip(turn, prompt=prompt, seconds=seconds, reference_images=refs or None,
+                          quality="high" if args.get("look") == "cinematic" else "standard",   # more steps for a commercial: slower, same price
                           name=str(args.get("name") or "New clip")[:50], add_to_timeline=True)
     voice = args.get("voice") or {}
     heard: dict[str, Any] = {}

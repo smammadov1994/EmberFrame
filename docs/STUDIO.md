@@ -25,10 +25,16 @@ Nothing opens by itself when the page loads. The step that is waiting says "Star
 |---|---|---|
 | 1 | The subject: what the video is about | A Shop video (rail, Shop), one of your files (rail, Media), or **Chat about it** and type it |
 | 2 | Who is on camera | Your avatar, another photo, a picture made by our models, no one, or **Chat about it** and describe them |
-| 3 | What to make | The kind of video and its length. The price follows the length |
+| 3 | What to make | The kind of video, its look (phone footage, or a cinematic commercial) and its length. The price follows the length |
 | 4 | The script | Written from the product facts. Read it, change it, press **Looks good** |
 | 5 | The voice | The presenter speaks, a library voice, or your own recording. Skipped when no one is on camera |
 | 6 | Film it | Shows the price. Nothing renders until the button is pressed |
+
+The look changes both the brief and the render. Phone footage is plain and handheld, the way a
+creator films it. A cinematic commercial is briefed like an advert (an arc, a named lens, one
+designed camera move, shaped light, shallow focus, designed sound) and renders at the highest
+quality, which takes longer and costs the same. With no one on camera the look starts as cinematic;
+with a presenter it starts as phone footage.
 
 The filmed clip appears to the right of Film it and is wired into Final video. New things always
 land to the right; Final video stays last.

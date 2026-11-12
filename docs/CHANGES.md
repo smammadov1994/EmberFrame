@@ -39,6 +39,10 @@ are in [STUDIO.md](STUDIO.md).
 - `server/tests/ember_eval.py`: fourteen behaviour checks (asks first, lays out instead of
   rendering, reads the board, holds back during a render, hooks from real videos, no leaks).
 
+**Look**
+- "What to make" has a Look: phone footage or cinematic commercial. Cinematic is briefed like an
+  advert and rendered at the highest quality. A product on its own starts as cinematic.
+
 **Shop data**
 - Every Shop video now carries its product's sales, revenue trend, reviews, stock, commission and how
   many videos and creators already sell it.
