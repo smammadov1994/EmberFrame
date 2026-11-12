@@ -797,8 +797,8 @@ body.chat-off .chat, body.chat-off .rz-chat { display: none; }
 body.picking .lib { border-color: rgba(242, 90, 43, 0.5); box-shadow: 0 0 0 1px rgba(242, 90, 43, 0.2), 0 0 40px -18px rgba(242, 90, 43, 0.6); }
 body.picking .as.pickable { cursor: pointer; } body.picking .as.pickable:hover { outline: 2px solid var(--accent); outline-offset: 1px; }
 body.picking .as.unpickable { opacity: 0.4; }
-body.canvas.ez-empty.picking #lib { display: block; }        /* the rail comes back while a step is being chosen in it */
-body.canvas.ez-empty.picking .ed > .flow { left: calc(var(--rail) + 10px); }
+body.canvas.ez-empty.picking #lib, body.canvas.ez-empty.stepping #lib { display: block; }   /* the rail comes back while a step is chosen or worked on in it, even with no files yet */
+body.canvas.ez-empty.picking .ed > .flow, body.canvas.ez-empty.stepping .ed > .flow { left: calc(var(--rail) + 10px); }
 .dock .composer { position: relative; }                       /* room for the circling light that points at the field */
 .composer.nope { animation: nope 0.32s ease-in-out; border-color: rgba(242, 90, 43, 0.9); }   /* Ember is busy: the message was not sent */
 @keyframes nope { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
