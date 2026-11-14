@@ -3,6 +3,22 @@
 Newest first. Each line is something a person using the studio would notice. The rules themselves
 are in [STUDIO.md](STUDIO.md).
 
+## 14 November 2026
+
+**A new look: white with blue**
+- The studio is white. The orange is gone: buttons, links, wires and the step that is waiting are blue.
+- Steps on the board are blue. A step that is waiting is pale blue, a finished step is filled blue with
+  white text, and the final video is navy.
+- Ember is a blue flame.
+- The marketing pages (`index.html`, `library.html`) keep their dark look for now.
+
+**The menus moved to the left**
+- File, Edit, View, Tools, History and Help are no longer a bar across the top. They sit in a strip of
+  icons down the left edge. Click the strip, or any icon, and it opens into a panel; a menu unfolds its
+  items in place. Picking an item, a click outside or Esc folds it again.
+- On a phone the strip is hidden; the button at the top left slides the panel in.
+- The top bar now holds only the project name, your account and "Next: post".
+
 ## 12 November 2026
 
 **Found by trying to beat it** (`server/tests/redteam.py`)

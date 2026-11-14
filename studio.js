@@ -24,13 +24,13 @@
   /* ---------- Ember: a small flame with a face. Drawn here, so every part of it can move. ---------- */
   var emN = 0;
   function mascot(still) {
-    var g = 'emg' + (emN++), ink = '#2B1206', line = '" fill="none" stroke="' + ink + '" stroke-width="1.8" stroke-linecap="round"/>';
+    var g = 'emg' + (emN++), ink = '#0B1F4A', line = '" fill="none" stroke="' + ink + '" stroke-width="1.8" stroke-linecap="round"/>';
     return '<svg class="em" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" aria-hidden="true">' +
-      '<defs><radialGradient id="' + g + '" cx="50%" cy="72%" r="66%"><stop offset="0" stop-color="#FFEDB8"/><stop offset="0.42" stop-color="#FFB25C"/><stop offset="1" stop-color="#F2562A"/></radialGradient></defs>' +
-      (still ? '' : '<g class="em-sparks" fill="#FFC27A"><circle cx="12" cy="22" r="1.7"/><circle cx="53" cy="17" r="1.4"/><circle cx="45" cy="7" r="1.1"/></g>') +
+      '<defs><radialGradient id="' + g + '" cx="50%" cy="72%" r="66%"><stop offset="0" stop-color="#E6F3FF"/><stop offset="0.42" stop-color="#7DB6FF"/><stop offset="1" stop-color="#2563EB"/></radialGradient></defs>' +
+      (still ? '' : '<g class="em-sparks" fill="#93C5FD"><circle cx="12" cy="22" r="1.7"/><circle cx="53" cy="17" r="1.4"/><circle cx="45" cy="7" r="1.1"/></g>') +
       '<g class="em-body"><path d="M34 6C34 13 40 16 45 21C50 26 53 31 53 38C53 49.5 43.6 58 32 58C20.4 58 11 49.5 11 38C11 29 17 22.5 24 19C29 16.5 33 12 34 6Z" fill="url(#' + g + ')"/>' +
       '<ellipse cx="21" cy="31" rx="2.6" ry="4.6" transform="rotate(30 21 31)" fill="#fff" opacity="0.3"/>' +
-      '<g class="em-face"><ellipse cx="19.5" cy="45.6" rx="3.3" ry="2.1" fill="#FF5A36" opacity="0.4"/><ellipse cx="44.5" cy="45.6" rx="3.3" ry="2.1" fill="#FF5A36" opacity="0.4"/>' +
+      '<g class="em-face"><ellipse cx="19.5" cy="45.6" rx="3.3" ry="2.1" fill="#FF8FA3" opacity="0.55"/><ellipse cx="44.5" cy="45.6" rx="3.3" ry="2.1" fill="#FF8FA3" opacity="0.55"/>' +
       '<g class="em-eyes"><g class="em-open"><ellipse cx="24.6" cy="40" rx="3.1" ry="4.1" fill="' + ink + '"/><ellipse cx="39.4" cy="40" rx="3.1" ry="4.1" fill="' + ink + '"/><circle cx="25.7" cy="38.4" r="1.15" fill="#fff"/><circle cx="40.5" cy="38.4" r="1.15" fill="#fff"/></g>' +
       (still ? '' : '<path class="em-arc" d="M21.4 41.8Q24.6 37 27.8 41.8M36.2 41.8Q39.4 37 42.6 41.8' + line + '<path class="em-shut" d="M21.6 40.4Q24.6 42.6 27.6 40.4M36.4 40.4Q39.4 42.6 42.4 40.4' + line) + '</g>' +
       '<path class="em-smile" d="M29.3 45.2Q32 47.9 34.7 45.2' + line +
@@ -1286,7 +1286,7 @@
     body.appendChild(el('div', { class: 'keys-list' }, rows.map(function (r) { return el('div', {}, [el('kbd', { text: r[0] }), el('span', { text: r[1] })]); })));
   }
 
-  /* ---------- the menu bar: File, Edit, View, Tools, History, Help ---------- */
+  /* ---------- the menus: File, Edit, View, Tools, History, Help ---------- */
   var menuPop = $('#menu-pop'), menuOpen = null;
   var MENUS = {
     File: function () { var flow = inFlow(), has = P.tracks.video.length > 0; return [
@@ -1320,7 +1320,7 @@
       { t: 'What can Ember do?', off: inFlow() || busy, on: function () { send('What can you do?'); } },
       { t: 'Keyboard shortcuts', on: shortcutsDialog }]; }
   };
-  function closeMenu() { menuPop.hidden = true; menuOpen = null; $$('#menubar button, #acct-btn').forEach(function (b) { b.setAttribute('aria-expanded', 'false'); }); }
+  function closeMenu() { menuPop.hidden = true; menuOpen = null; $('#acct-btn').setAttribute('aria-expanded', 'false'); }
   function openMenu(btn, items) {
     menuPop.textContent = '';
     items.forEach(function (it) {
@@ -1333,31 +1333,68 @@
     menuPop.hidden = false;
     menuPop.style.top = (r.bottom + 6) + 'px';
     menuPop.style.left = Math.max(8, Math.min(r.left, innerWidth - menuPop.offsetWidth - 8)) + 'px';
-    $$('#menubar button, #acct-btn').forEach(function (b) { b.setAttribute('aria-expanded', String(b === btn)); });
+    btn.setAttribute('aria-expanded', 'true');
     menuOpen = btn;
   }
+  /* The menus live in a strip down the left edge. Folded, it shows one icon for each menu; a click opens it
+     into a panel, and a menu unfolds its items in place. Picking an item, a click outside or Esc folds it again. */
+  var side = $('#side'), sideTog = $('#side-tog'), sideNow = null;
+  var SIDE_ICONS = {
+    File: '<path d="M6 3h5.5L15 6.5V16a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM11.5 3v3.5H15"/>',
+    Edit: '<path d="M4 16l.8-3.4 8.8-8.8a1.4 1.4 0 0 1 2 0l.6.6a1.4 1.4 0 0 1 0 2l-8.8 8.8zM12.2 5.2l2.6 2.6"/>',
+    View: '<path d="M2.5 10s2.8-5 7.5-5 7.5 5 7.5 5-2.800 5-7.5 5-7.5-5-7.5-5z"/><circle cx="10" cy="10" r="2.2"/>',
+    Tools: '<path d="M4 6h7M14.5 6H16M4 14h1.5M9 14h7"/><circle cx="12.75" cy="6" r="1.75"/><circle cx="7.25" cy="14" r="1.75"/>',
+    History: '<circle cx="10" cy="10" r="6.5"/><path d="M10 6.500V10l2.500 1.500"/>',
+    Help: '<circle cx="10" cy="10" r="6.5"/><path d="M8 8.200a2 2 0 1 1 3 1.700c-.6.4-1 .8-1 1.600M10 13.700v.1"/>'
+  };
+  function sideIsOpen() { return document.body.classList.contains('side-open'); }
+  function sideShow(name) {
+    sideNow = name;
+    $$('.side-sec', side).forEach(function (sec) {
+      var on = sec.dataset.menu === name, box = $('.side-items', sec);
+      sec.classList.toggle('open', on); $('.side-h', sec).setAttribute('aria-expanded', String(on));
+      box.textContent = '';
+      if (!on || !P) return;
+      MENUS[name]().forEach(function (it) {
+        if (!it) return void box.appendChild(el('hr'));
+        box.appendChild(el('button', { type: 'button', role: 'menuitem', disabled: it.off ? '' : null, onclick: function () { sideSet(false); it.on(); } },
+          [el('i', { text: it.mark ? '✓' : '' }), el('span', { text: it.t }), it.k ? el('kbd', { text: it.k }) : null]));
+      });
+    });
+  }
+  function sideSet(open) {
+    document.body.classList.toggle('side-open', open);
+    [sideTog, $('#side-open')].forEach(function (b) { b.setAttribute('aria-expanded', String(open)); });
+    sideTog.title = open ? 'Close the menu' : 'Open the menu';
+    if (!open) sideShow(null);
+  }
   Object.keys(MENUS).forEach(function (name) {
-    var b = el('button', { type: 'button', 'aria-haspopup': 'true', 'aria-expanded': 'false', text: name });
-    var show = function () { if (P) openMenu(b, MENUS[name]()); };
-    b.addEventListener('click', function () { if (menuOpen === b) closeMenu(); else show(); });
-    b.addEventListener('pointerenter', function () { if (menuOpen && menuOpen !== b) show(); });   // slide along the bar once a menu is open
-    $('#menubar').appendChild(b);
+    var h = el('button', { type: 'button', class: 'side-h', 'aria-expanded': 'false', title: name,
+      html: '<svg viewBox="0 0 20 20" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">' + SIDE_ICONS[name] + '</g></svg>' +
+        '<span class="lb">' + name + '</span><svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5l4.5 4.5L6 12.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' });
+    h.addEventListener('click', function () { if (!sideIsOpen()) { sideSet(true); sideShow(name); } else sideShow(sideNow === name ? null : name); });
+    var sec = el('div', { class: 'side-sec', 'data-menu': name }, [h, el('div', { class: 'side-items', role: 'menu', 'aria-label': name })]);
+    $('#side-menus').appendChild(sec);
   });
+  sideTog.addEventListener('click', function () { sideSet(!sideIsOpen()); });
+  $('#side-open').addEventListener('click', function () { sideSet(!sideIsOpen()); });
+  side.addEventListener('click', function (e) { if (e.target === side && !sideIsOpen()) sideSet(true); });   // the empty part of the folded strip opens it too
+  document.addEventListener('pointerdown', function (e) { if (sideIsOpen() && !side.contains(e.target) && !e.target.closest('#side-open')) sideSet(false); });
   $('#acct-btn').addEventListener('click', function () {
     var b = $('#acct-btn'); if (menuOpen === b) return closeMenu();
     openMenu(b, [{ info: 1, t: user }, { info: 1, t: 'Render machine: ' + (STATUS.gpu && STATUS.gpu.online ? 'online' : 'offline') },
       { info: 1, t: P && P.spent ? '$' + Number(P.spent).toFixed(2) + ' rendered in this project' : 'Nothing rendered in this project yet' }, 0,
       { t: 'Your projects…', on: projectsDialog }, { t: 'Sign out', on: function () { try { localStorage.removeItem('ember_session'); } catch (e) {} location.href = 'index.html'; } }]);
   });
-  document.addEventListener('pointerdown', function (e) { if (menuOpen && !menuPop.contains(e.target) && !e.target.closest('#menubar, #acct-btn')) closeMenu(); });
-  document.addEventListener('keydown', function (e) { if (e.key !== 'Escape') return; if (menuOpen) { closeMenu(); e.stopPropagation(); } else if (!dlg.hidden) { closeDialog(); e.stopPropagation(); } }, true);
+  document.addEventListener('pointerdown', function (e) { if (menuOpen && !menuPop.contains(e.target) && !e.target.closest('#acct-btn')) closeMenu(); });
+  document.addEventListener('keydown', function (e) { if (e.key !== 'Escape') return; if (menuOpen) { closeMenu(); e.stopPropagation(); } else if (sideIsOpen()) { sideSet(false); e.stopPropagation(); } else if (!dlg.hidden) { closeDialog(); e.stopPropagation(); } }, true);
 
   $('#chat-clear').addEventListener('click', function () { if (busy) return; api('/api/reset', { method: 'POST' }).then(function () { showLog([]); note('A clean chat about the same video. The last one is in History.'); }); });
 
   /* ---------- the browse view: the library rail grown over the editor, drawn from blocks Ember composed ---------- */
   var num = function (x) { x = Number(x) || 0; return x >= 1e6 ? (x / 1e6).toFixed(1).replace('.0', '') + 'M' : x >= 1e4 ? Math.round(x / 1e3) + 'K' : x >= 1e3 ? (x / 1e3).toFixed(1).replace('.0', '') + 'K' : (Math.round(x * 100) / 100).toLocaleString(); };
   var METRIC = { views: ['views', ''], likes: ['likes', ''], units_7d: ['units / 7 days', ''], price: ['price', '$'], seconds: ['seconds', ''] };
-  var HUES = ['#F25A2B', '#FFB08E', '#FFD08A', '#5FD3B0', '#9DB4FF', '#C39BFF', '#8A2E12', '#8B8881'];
+  var HUES = ['#2563EB', '#60A5FA', '#F59E0B', '#14B8A6', '#8B5CF6', '#EC4899', '#1E3A8A', '#94A3B8'];
   function shopVideos() { return (P.shop && P.shop.videos) || []; }
   function chartData(b) {
     if (b.data) return { rows: b.data, unit: b.unit || '', pre: '' };
@@ -1462,7 +1499,7 @@
         var W = 900, H = 220, px = 34, py = 22, n = rows.length;
         var X = function (i) { return px + (W - 2 * px) * (n === 1 ? 0.5 : i / (n - 1)); }, Y = function (v) { return H - py - (H - 2 * py) * (v / max); };
         var pts = rows.map(function (r, i) { return X(i).toFixed(1) + ' ' + Y(r.value).toFixed(1); });
-        var s2 = '<defs><linearGradient id="cv-grad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(242,90,43,0.35)"/><stop offset="1" stop-color="rgba(242,90,43,0)"/></linearGradient></defs>';
+        var s2 = '<defs><linearGradient id="cv-grad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(37,99,235,0.3)"/><stop offset="1" stop-color="rgba(37,99,235,0)"/></linearGradient></defs>';
         [0.25, 0.5, 0.75, 1].forEach(function (g) { s2 += '<line class="gr" x1="' + px + '" x2="' + (W - px) + '" y1="' + Y(max * g) + '" y2="' + Y(max * g) + '"/>'; });
         s2 += '<path class="ar" d="M' + pts.join(' L') + ' L' + X(n - 1) + ' ' + (H - py) + ' L' + X(0) + ' ' + (H - py) + ' Z"/><path class="ln" d="M' + pts.join(' L') + '"/>';
         rows.forEach(function (r, i) { s2 += '<circle cx="' + X(i) + '" cy="' + Y(r.value) + '" r="4"/><text x="' + X(i) + '" y="' + (Y(r.value) - 10) + '" text-anchor="middle">' + show(r.value) + '</text><text x="' + X(i) + '" y="' + (H - 4) + '" text-anchor="middle">' + r.label.slice(0, 14).replace(/[<&]/g, '') + '</text>'; });
