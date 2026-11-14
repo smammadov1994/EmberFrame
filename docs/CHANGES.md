@@ -5,6 +5,29 @@ are in [STUDIO.md](STUDIO.md).
 
 ## 14 November 2026
 
+**The pilot, and a free canvas**
+- The paragraph above the board is gone. Ember's next move is now one or two lines above the message
+  field, the pilot, with a button that makes that move: Open Shop, Open it, Add "The script", Open
+  final video.
+- A new board starts empty, with Guided off. Drag a Shop video, a picture, a clip or a sound onto it
+  and it stays where you drop it. Clicking a Shop video puts it on the board as well.
+- You connect things yourself: drag from the + on one and drop on the other, and a menu asks what
+  the two should make. A product and a picture of a person offers "Put this person in the video".
+- After that the pilot's button adds each next step, so you never have to hunt for it.
+- Guided is still there as a switch: six steps, one after another. A board that was still on its
+  empty first step opens as the free canvas.
+- The zoom buttons moved to the top left of the board, clear of the message field and the pilot.
+
+**The rail grows smoothly**
+- Cards no longer jump about while you drag the rail's edge. The number of columns changes at a few
+  widths only; between them the cards simply grow.
+- Labels on a card are sized from the card. A small card shows its picture, one line of name and one
+  figure, in small type; the labels no longer cover the picture.
+- Dragging the edge left stops at a small size. It no longer snaps the rail shut: press Media or Shop
+  (the one that is showing) to shut it.
+- Opening Shop when it is empty loads what is selling now.
+- Fixed: on a wide Shop card the product's name was white on a pale card.
+
 **Simpler nodes**
 - A step on the board is its icon and its question, nothing else. The small label ("Start here",
   "Next", "To do") and the grey line under it are gone; the line is still there as a tooltip.
@@ -28,7 +51,7 @@ are in [STUDIO.md](STUDIO.md).
   on the left edge. Press one and the rail opens beside the board to show it; press it again, or the
   arrow at the top of the rail, and it shuts. The board gets the room back.
 - The rail's right edge drags. Drag it right to see more (most of the page, if you want the Shop
-  numbers), or all the way left to shut it. From shut, dragging the edge right opens it again.
+  numbers). From shut, dragging the edge right opens it again.
   Double-click the edge for the usual width. The studio remembers the width and whether it was open.
 - A step you open on the board still opens in the rail, and the rail opens for it by itself. Close
   the step and the rail goes back to how you left it. Pressing Media or Shop while a step is open

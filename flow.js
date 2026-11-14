@@ -60,10 +60,18 @@
   /* ---------- the graph ---------- */
   function rid() { return 'n' + Math.random().toString(36).slice(2, 8); }
   function mk(type, x, y) { return { id: rid(), type: type, x: Math.round(x), y: Math.round(y), d: type === 'subject' ? { tab: 'shop', sort: 'trending' } : type === 'format' ? { seconds: 8 } : {} }; }
-  function fresh() { var n = mk('subject', 0, 0); return { guided: true, view: null, nodes: [n], wires: [], open: n.id, pristine: true }; }
+  function fresh(guided) {                                    // a new board. Free: empty, things are dragged in and wired by hand. Guided: step one is waiting.
+    if (!guided) return { guided: false, view: null, nodes: [], wires: [], open: null, pristine: true };
+    var n = mk('subject', 0, 0); return { guided: true, byHand: 1, view: null, nodes: [n], wires: [], open: null, pristine: true };
+  }
+  function untouched(g) {                                     // a guided board nobody has used yet (only the empty first step, and Guided was not switched on by hand): it becomes the free canvas
+    if (!g || !g.guided || g.byHand) return false;
+    var st = g.nodes.filter(function (n) { return n.type !== 'final'; });
+    return st.length === 1 && st[0].type === 'subject' && !st[0].d.subject && !st[0].d.via;
+  }
   var G = null;
   try { G = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
-  if (!G || !G.nodes || !G.nodes.length || !G.wires) G = fresh();
+  if (!G || !G.nodes || !G.wires || untouched(G)) G = fresh();
   G.nodes.forEach(function (n) {                              // a render that was running when the page was left keeps running on the server: wait for its clip
     var fl = n.type === 'film' && n.d.film;
     if (!fl || fl.state !== 'run') return;
@@ -83,6 +91,7 @@
   api('/api/board').then(function (b) {                       // another browser, or cleared storage: the server's copy is the board
     if (!b || !Array.isArray(b.nodes) || !b.nodes.length || !Array.isArray(b.wires)) return;
     if (!G.pristine && (G.saved || 0) >= (b.saved || 0)) return;   // this browser's copy is the newer one
+    if (untouched(b)) return;
     G = b; V = G.view || { x: 0, y: 0, k: 1 }; G.open = null;
     G.nodes.forEach(function (n) { if (n.type === 'film' && n.d && n.d.film && n.d.film.state === 'run') n.d.film.resumed = true; });
     try { localStorage.setItem(KEY, JSON.stringify(G)); } catch (e) {}
@@ -200,10 +209,14 @@
     var n = G.nodes.filter(function (m) { return m.type === 'subject' && !m.d.subject; })[0];
     if (n) {                                                 // step one is still empty: this video is what the video is about
       delete n.d.via;
-      n.d.subject = { kind: 'shop', id: String(v.id), title: v.product || v.title || 'Video', poster: v.poster, price: v.price, units: v.units_7d, creator: v.creator, url: v.url, image: v.image, rating: v.rating,
-        more: { price_was: v.price_was, reviews: v.reviews, sold_total: v.sold_total, seller: v.seller, category: v.category, stock: v.stock } };
+      n.d.subject = shopSubject(v);
       changed(n); S.pick(null);
-      return void (G.guided ? complete(n) : open(n.id));
+      return void (G.guided ? complete(n) : (keep(), draw(), renderPanel()));
+    }
+    if (!G.guided) {                                         // the free canvas: it lands on the board as a product, to be wired to whatever goes with it
+      var at = centre(), m = addNode('subject', at.x, at.y);
+      m.d.subject = shopSubject(v); keep(); draw();
+      return;
     }
     var has = G.nodes.filter(function (m) { return m.type === 'subject' && m.d.subject; })[0];
     stop(null, 'This video already has its subject' + (has ? ' (' + called(has) + ')' : '') + '. To use another product, click step 1 and pick it there, or press Start over for a new video.');
@@ -414,7 +427,7 @@
       n = mediaNode(asset) || addMedia(asset, target.x - NW - GAP, target.y);
       keep(); draw(); connect(n, target); return n;
     }
-    n = place(asset, cx, cy); begin(n); return n;
+    n = place(asset, cx, cy); if (G.guided) begin(n); return n;   // free: it sits where it was dropped until it is wired to something
   }
 
   function lay(plan) {                                        // Ember chose every step: they go on the board filled in, and it stops before filming
@@ -498,9 +511,36 @@
     else b.d.voice = { kind: 'own', asset: A.id, title: 'My own voice', from: a.id };
   }
 
+  function shopSubject(v) {                                   // a Shop video as the answer to step one
+    return { kind: 'shop', id: String(v.id), title: v.product || v.title || 'Video', poster: v.poster, price: v.price, units: v.units_7d, creator: v.creator, url: v.url, image: v.image, rating: v.rating,
+      more: { price_was: v.price_was, reviews: v.reviews, sold_total: v.sold_total, seller: v.seller, category: v.category, stock: v.stock } };
+  }
+  function centre() { var r = view.getBoundingClientRect(), w = toWorld(r.left + r.width / 2, r.top + r.height / 2); return { x: Math.round(w.x - NW / 2), y: Math.round(w.y - NH / 2) }; }
+  function joinPerson(s, m) {                                 // this picture is who presents that product
+    m.d.as = 'creator'; fill(m);
+    var o = outs(s.id), step = o.filter(function (x) { return x.type === 'creator' && !x.d.creator; })[0], made = o.filter(function (x) { return x.type === 'format'; })[0];
+    if (!o.length) return void remake(s, m);                  // nothing follows the product yet: "What to make", fed by both
+    if (step) return void connect(m, step);
+    if (made && !ctx(made.id).creator) return void connect(m, made);
+    say('"' + called(s) + '" already has someone on camera. Remove that step first, or start another video from a new product.');
+  }
+  function pair(a, b) {                                       // a product on the board wired to a file, either way round: ask what the two should make
+    var s = a.type === 'subject' ? a : b.type === 'subject' ? b : null, m = s === a ? b : a;
+    if (!s || !s.d.subject) return false;
+    if (m.type === 'subject') { say('A video is about one thing. Connect it to a person, or to "What to make".'); return true; }
+    if (m.type !== 'media') return false;
+    var A = P().assets[m.d.asset]; if (!A) return false;
+    var items = [];
+    if (A.kind === 'image') items.push({ t: 'Put this person in the video', d: 'They present ' + called(s) + '.', icon: I.point, hot: true, on: function () { joinPerson(s, m); } });
+    items.push({ t: 'Ask Ember about these two', d: 'Say what you want done with them.', icon: I.spark, on: function () { S.ask('With "' + called(s) + '" and "' + A.name + '": '); } });
+    choose('What do you want to make?', { x: (a.x + b.x) / 2 + NW / 2, y: (a.y + b.y) / 2 + NH / 2 }, items);
+    return true;
+  }
+
   function connect(a, b) {
     if (a.id === b.id || G.wires.some(function (w) { return w.from === a.id && w.to === b.id; })) return;
     if (b.id === a.id || below(b.id).some(function (m) { return m.id === a.id; })) return void say('That would make a loop. A wire has to lead forward.');
+    if (!filming(b) && pair(a, b)) return;
     var no = filming(b) ? 'That step is being filmed right now. Wire it after the render ends.' : wireRule(a, b); if (no) return void say(no);
     if (link(a, b)) return;
     if (answers(a, b)) take(a, b);
@@ -530,7 +570,17 @@
   function money(v) { return '$' + Number(v).toFixed(2); }
   function thumb(a) { return a ? (a.poster_url || (a.kind === 'image' ? a.url : '')) : ''; }
   function short(x) { x = Number(x) || 0; return x >= 1e6 ? (x / 1e6).toFixed(1).replace('.0', '') + 'M' : x >= 1e3 ? Math.round(x / 1e3) + 'K' : String(x); }
-  function say(text) { var p = $('#flow-say'); if (p.textContent === text) return; var q = el('p', { id: 'flow-say', text: text }); p.parentNode.replaceChild(q, p); }
+  var pilotEl = el('div', { class: 'pilot', id: 'pilot', role: 'status', hidden: '' }, [
+    el('div', { class: 'pilot-t' }, [el('small', { id: 'flow-step' }), el('p', { id: 'flow-say' }), el('div', { class: 'pilot-acts', hidden: '' })]),
+    el('button', { type: 'button', class: 'pilot-x', 'aria-label': 'Hide this', title: 'Hide this', text: '\u2715', onclick: function () { pilotGone = $('#flow-say').textContent; pilotEl.hidden = true; } })]), pilotGone = '';
+  $('#dock').appendChild(pilotEl);
+  function say(text, acts) {                                  // the pilot: one or two lines above the message field, and the buttons that make the next move
+    var p = $('#flow-say'), box = pilotEl.querySelector('.pilot-acts');
+    box.textContent = ''; box.hidden = !(acts && acts.length);
+    (acts || []).forEach(function (a) { box.appendChild(el('button', { type: 'button', class: 'btn' + (a.hot ? ' btn-accent' : ''), text: a.t, onclick: a.on })); });
+    if (p.textContent !== text) { p.textContent = text; pilotGone = ''; pilotEl.classList.remove('in'); void pilotEl.offsetWidth; pilotEl.classList.add('in'); }
+    pilotEl.hidden = !text || pilotGone === text;
+  }
   function sse(name, args, on) {
     if (S.acting && S.acting()) {                            // one job at a time: Ember is mid-turn, so the board waits
       on({ type: 'error', message: 'Ember is working on something. Try again when it is done.' });
@@ -707,7 +757,7 @@
   function paint(n, e) {
     if (n.type === 'media' || n.type === 'final') return void paintMedia(n, e);
     var m = T[n.type], done = isDone(n), need = needs(n), sum = summary(n), box = e.querySelector('.gn-s');
-    var cur = !G.open && current(), wait = !!cur && cur.id === n.id;   // nothing is open: the step that is waiting asks to be clicked
+    var cur = !G.open && nextUp(), wait = !!cur && cur.id === n.id;   // nothing is open: the step that is waiting asks to be clicked
     var chatty = (n.type === 'subject' || n.type === 'creator') && n.d.via === 'chat' && !done;   // this step is being answered in the chat
     var pic = done && sum && sum.img;                         // a finished step shows what was chosen inside the node: its picture and its name
     var plain = !done && !sum && !chatty && !need.length;     // a step still to do is its icon and its question, nothing more
@@ -755,18 +805,55 @@
     Object.keys(els).forEach(function (id) { if (!have[id]) { els[id].remove(); delete els[id]; } });
     drawWires();
     var sw = $('#flow-guided'); sw.setAttribute('aria-checked', String(!!G.guided));
-    var on = G.open && node(G.open), left = G.nodes.filter(function (n) { return n.type !== 'final' && !isDone(n); }).length;
-    var cs = !on && current();
-    $('#flow-step').textContent = on ? T[on.type].title : cs ? 'Step ' + (ORDER.indexOf(cs.type) + 1) + ' of 6' : left ? left + ' to do' : 'Your canvas';
-    if (on) { var nd = needs(on); say(nd.length ? 'This one needs ' + nd.map(function (x) { return T[x.type].title.toLowerCase(); }).join(' and ') + ' first. Add it from here, or drag a wire into this node.' : guideFor(on)); }
-    else {
-      var cur = current();
-      var clipsIn = P().tracks.video.length;
-      say(!cur && clipsIn ? 'Your video has ' + clipsIn + (clipsIn === 1 ? ' clip' : ' clips') + '. Click Final video to play it, caption it and export it. Start over begins a new one.'
-        : !cur ? 'Drag media in, wire nodes together, or tell Ember what to do. Drag on the empty board to select several nodes; hold Space and drag to move the board. Whatever is wired into Final video is your video.'
-        : cur.type === 'subject' ? 'Step 1: click "What is the video about?" to pick a product, or drop a product picture on the canvas. Or tell Ember below and it sets the video up.'
-        : 'Step ' + (ORDER.indexOf(cur.type) + 1) + ': click "' + T[cur.type].ask + '" to carry on.');
+    var g = guide();
+    $('#flow-step').textContent = g.label; say(g.text, g.acts);
+  }
+  /* ---------- the pilot: Ember says what the next move is, and its button makes that move ---------- */
+  function nextUp() {                                         // the step that is waiting to be answered: guided, the one the flow is on; free, the first one left open
+    if (G.guided) return current();
+    return G.nodes.filter(function (n) { return n.type !== 'media' && n.type !== 'final' && !isDone(n) && !(n.type === 'film' && n.d.film && n.d.film.state === 'run'); })
+      .sort(function (x, y) { return ORDER.indexOf(x.type) - ORDER.indexOf(y.type); })[0] || null;
+  }
+  function after(n) { var rules = may(n); return ORDER.filter(function (t) { return !rules[t]; })[0] || null; }   // the step that may come next after n
+  function carryOn(n) {                                       // add the step that comes next after n, wired to it, and open it
+    if (n.type === 'media') return void begin(n);
+    var t = after(n); if (!t) return void open(n.id);
+    keep(); open(addNode(t, n.x + NW + GAP, n.y, n.id).id);
+  }
+  function sentence(type) { var m = T[type]; return m.ask + (/[?.!]$/.test(m.ask) ? ' ' : '. ') + m.hint; }
+  function guide() {                                          // { label, text, acts }: what Ember says above the message field right now
+    var p = P(), on = G.open && node(G.open), clips = p.tracks.video.length, fin = finalNode();
+    if (on) {
+      var nd = needs(on), nx = !G.guided && on.type !== 'media' && on.type !== 'final' && on.type !== 'film' && isDone(on) && !outs(on.id).length && after(on);
+      return { label: T[on.type].title,
+        text: nd.length ? 'This one needs ' + nd.map(function (x) { return T[x.type].title.toLowerCase(); }).join(' and ') + ' first. Add it from here, or drag a wire into this node.'
+          : nx ? 'Done. Next: ' + T[nx].title.toLowerCase() + '.' : guideFor(on),
+        acts: nx ? [{ t: 'Add "' + T[nx].title + '"', hot: true, on: function () { carryOn(on); } }] : [] };
     }
+    if (filming()) return { label: 'Filming', text: 'Filming now. It takes a few minutes, and the clip lands in your final video.', acts: [{ t: 'Show me', on: function () { open(filming().id); } }] };
+    var cur = nextUp();
+    if (cur) {
+      var need = needs(cur);
+      return { label: G.guided ? 'Step ' + (ORDER.indexOf(cur.type) + 1) + ' of 6' : 'Next',
+        text: need.length ? '"' + T[cur.type].title + '" needs ' + need.map(function (x) { return T[x.type].title.toLowerCase(); }).join(' and ') + ' first.' : sentence(cur.type),
+        acts: [{ t: cur.type === 'subject' ? 'Pick it' : 'Open it', hot: true, on: function () { open(cur.id); } }] };
+    }
+    var items = G.nodes.filter(function (n) { return n.type !== 'final'; });
+    var ends = items.filter(function (n) { return n.type !== 'media' && n.type !== 'film' && !outs(n.id).length && after(n); });
+    var loose = items.filter(function (n) { return !ins(n.id).length && !outs(n.id).length && !(n.type === 'media' && inCut(n.d.asset)); });
+    if (ends.length && (G.guided || ins(ends[0].id).length || loose.length < 2)) {   // a chain that stops short: one button adds what comes next
+      var e0 = ends[0], t0 = after(e0);
+      return { label: 'Next', text: T[t0].title + '. ' + T[t0].hint + (loose.length === 1 && loose[0] === e0 ? ' Or drag in something to go with it first.' : ''),
+        acts: [{ t: 'Add "' + T[t0].title + '"', hot: true, on: function () { carryOn(e0); } }].concat(loose.length === 1 && loose[0] === e0 ? [{ t: 'Open Media', on: function () { S.rail('media'); } }] : []) };
+    }
+    if (!G.guided && loose.length >= 2) return { label: 'Connect', text: 'Connect two of them: drag from the + on one and drop it on the other. I will ask what you want to make.', acts: [] };
+    if (!G.guided && loose.length === 1) return { label: 'Next', text: 'Drag in something to go with it, or carry on with this alone.',
+      acts: [{ t: 'Carry on with this', hot: true, on: function () { carryOn(loose[0]); } }, { t: 'Open Shop', on: function () { S.rail('shop'); } }] };
+    if (clips) return { label: 'Your video', text: 'Your video has ' + clips + (clips === 1 ? ' clip' : ' clips') + '. Open it to play, caption and export.',
+      acts: fin ? [{ t: 'Open final video', hot: true, on: function () { open(fin.id); } }] : [] };
+    if (items.length) return { label: 'Your canvas', text: 'Drag things in, connect them, or tell me what to do. Whatever is wired into Final video is your video.', acts: [] };
+    return { label: 'Start', text: 'Drag a selling video from Shop, or a picture or clip of your own from Media, onto the board. Then connect them. Or tell me what to make.',
+      acts: [{ t: 'Open Shop', hot: true, on: function () { S.rail('shop'); } }, { t: 'Open Media', on: function () { S.rail('media'); } }] };
   }
   function guideFor(n) {
     if (n.type === 'film' && n.d.film && n.d.film.state === 'done') return 'Filmed. The clip is wired into your final video.';
@@ -901,6 +988,14 @@
     e.preventDefault();
     var hitNode = e.target.closest ? e.target.closest('.gn') : null, onto = hitNode ? hitNode.getAttribute('data-id') : null;
     if (asset && has(asset)) return void dropped(asset, e.clientX, e.clientY, onto);
+    var sv = !G.guided && ((P().shop || {}).videos || []).filter(function (x) { return String(x.id) === String(shop); })[0];
+    if (sv) {                                                // the free canvas: the selling video lands where it was dropped, as a product to wire to whatever goes with it
+      if (filming()) return void stop(filming(), 'A clip is being filmed right now. Wait for it to finish before starting from another video.');
+      var w = toWorld(e.clientX, e.clientY), m = addNode('subject', Math.round(w.x - NW / 2), Math.round(w.y - NH / 2));
+      m.d.subject = shopSubject(sv); keep(); draw();
+      if (onto && node(onto) && node(onto).id !== m.id) connect(m, node(onto));
+      return;
+    }
     var cur = current();
     if (cur && cur.type !== 'subject') return void stop(cur, 'This video already has its subject. Click step 1 to change it, or press Start over for a new video.');
     var cx = e.clientX, cy = e.clientY;
@@ -920,7 +1015,11 @@
   $('#flow-in').addEventListener('click', function () { var r = view.getBoundingClientRect(); zoomAt(r.left + room().w / 2, r.top + r.height / 2, V.k * 1.2); });
   $('#flow-out').addEventListener('click', function () { var r = view.getBoundingClientRect(); zoomAt(r.left + room().w / 2, r.top + r.height / 2, V.k / 1.2); });
   $('#flow-fit').addEventListener('click', tidy);            // Fit tidies the board first, then fits it in view
-  $('#flow-guided').addEventListener('click', function () { G.guided = !G.guided; keep(); draw(); renderPanel(); });
+  $('#flow-guided').addEventListener('click', function () {   // Guided on: the six steps, one after another, starting from step one. Off: the free canvas.
+    G.guided = !G.guided; G.byHand = 1;
+    if (G.guided && !P().tracks.video.length && !G.nodes.some(function (n) { return n.type !== 'media' && n.type !== 'final'; })) { var at = centre(); addNode('subject', at.x, at.y); }
+    keep(); draw(); renderPanel();
+  });
   document.addEventListener('keydown', function (e) {        // Backspace or Delete takes the selected node off the board
     if ((e.key !== 'Backspace' && e.key !== 'Delete') || root.hidden || (!G.open && !selCount()) || e.metaKey || e.ctrlKey || e.altKey) return;
     var t = e.target, tag = t && t.tagName;
@@ -1527,9 +1626,9 @@
     unsure(); S.chatPoint(false, null, true); S.pick(null);
     clips.forEach(function (id) { S.cut.remove(id); });
     if (P().tracks.captions.length) S.cut.clearCaptions();
-    G = fresh(); delete G.pristine; G.open = null; SEL = {}; claimed = null; peek = null; V = { x: 0, y: 0, k: 1 }; shopTried = false;
+    G = fresh(G.guided && G.byHand); delete G.pristine; G.open = null; SEL = {}; claimed = null; peek = null; V = { x: 0, y: 0, k: 1 }; shopTried = false;
     Object.keys(els).forEach(function (id) { els[id].remove(); delete els[id]; });
-    sync(); draw(); renderPanel(); focusOn(G.nodes[0]); keep();
+    sync(); draw(); renderPanel(); fit(); keep();
   });
   window.addEventListener('resize', function () { if (!root.hidden) apply(false); });
   if (window.ResizeObserver) {                                // the rail or the chat opened, closed or was dragged: a fitted board fits again, any other view keeps its centre
@@ -1550,7 +1649,6 @@
     });
     S.api('/api/project').then(function (p) { if (p && P() && p.version !== P().version) S.setProject(p); }).catch(function () {});
   }, 8000);
-  $('#flow .flow-top .orb').innerHTML = S.mascot();
   S.onChange(function () {                                    // the project changed (you, or Ember): the canvas follows
     if (root.hidden || !P()) return;
     validate(); sync(); draw(); keep();

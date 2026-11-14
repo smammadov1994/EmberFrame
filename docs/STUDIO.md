@@ -12,10 +12,20 @@ After a change to `server/ember.py` the server must be stopped and started again
 | Part | What it is |
 |---|---|
 | The board (canvas) | The whole right side, and the whole studio. Steps and files are nodes; whatever is wired into **Final video**, in order, is the video. |
-| The rail (left edge) | A strip of icons. **Media** (your files) and **Shop** (TikTok Shop videos or products, with search and an order switch) open the rail beside the board; pressing the one that is showing, or the arrow at its top, shuts it. Its right edge drags: wider to show more (each Shop card then shows the product's numbers), or all the way left to shut it; from shut, dragging the edge right opens it. The width and whether it was open are remembered. Step 1 is chosen here, and the rail opens by itself for it. Below Media and Shop are the menus (File, Edit, View, Tools, History, Help): an icon flies its items out; picking one, a click outside or Esc folds them away. |
+| The rail (left edge) | A strip of icons. **Media** (your files) and **Shop** (TikTok Shop videos or products, with search and an order switch) open the rail beside the board; pressing the one that is showing, or the arrow at its top, shuts it. Its right edge drags wider or narrower: it stops at a small size and is never shut by dragging (from shut, dragging the edge right opens it). The cards grow with the rail; the number of columns changes at a few widths only, and each card's labels are sized from the card, so a small card shows its picture, one line of name and one figure. A wide Shop card shows the product's numbers. The width and whether it was open are remembered. Opening Shop when it is empty loads what is selling now. Below Media and Shop are the menus (File, Edit, View, Tools, History, Help): an icon flies its items out; picking one, a click outside or Esc folds them away. |
 | The message field (bottom centre) | The only place to type to Ember. Ember's face beside it shows or hides the chat session. |
+| The pilot (above the message field) | Ember's one or two lines about the next move, with a button that makes it: **Open Shop**, **Open it**, **Add "The script"**, **Open final video**. It replaces the paragraph that used to sit above the board. The × hides it until it has something new to say. Refusals and warnings are said here too. |
 | The chat session (left, hidden until you talk) | The conversation with Ember: replies, steps, approval cards. |
 | The step panel (in the rail) | Steps 2 to 6, a file's details and Final video open in the left rail, which opens and widens for them. Close the step (×, Esc, or press Media or Shop) and the rail goes back to how it was left: shut, or on Media or Shop. Step 1 uses Media and Shop themselves. On a phone it is a sheet at the bottom. |
+
+The top of the board holds only the step strip, the **Guided** switch and **Start over**. The zoom buttons are at the top left of the board.
+
+### Two ways to work
+
+- **The free canvas (Guided off, the default for a new board).** The board starts empty. Drag anything onto it: a Shop video (it lands as the product), a picture, a clip, a sound. Clicking a Shop video puts it on the board too. Things stay where they are dropped. Connect two of them by dragging from the + on one and dropping on the other, and a menu asks what the two should make: a product and a picture of a person offers "Put this person in the video", which adds **What to make** fed by both; two clips offer to play one after the other, side by side or stacked; a sound and a clip offer the sound as the clip's voice; every pair offers "Ask Ember about these two". From there the pilot's button adds each next step. The same rules apply as in the guided path: steps run in order, a step that needs another says so, nothing films until the priced button is pressed.
+- **Guided (switch it on).** The six steps one after another, starting from step one; finishing a step opens the next. A file dropped on the board answers the step that is waiting.
+
+A board that was still on its untouched first guided step when this changed opens as the free canvas.
 
 Nothing opens by itself when the page loads. The step that is waiting pulses. A step shows only its icon and its question; once something is picked for it, the picture and name of what was picked show inside the node.
 

@@ -389,6 +389,7 @@
     sel = c.id; changed();
   }
   /* ---------- the library lives in the left rail: Media (your files) or Shop (what is selling) ---------- */
+  var RAIL_MIN = 200;                                         // the narrowest the open rail gets
   var libView = 'media', rail = { open: false, view: 'media' }, tapped = false;   // rail: what the person left it as; a step can hold it open on top of that
   try { var rail0 = JSON.parse(localStorage.getItem('ember_rail') || 'null'); if (rail0) rail = { open: !!rail0.open, view: rail0.view === 'shop' ? 'shop' : 'media' }; } catch (e) {}
   document.addEventListener('pointerdown', function () { tapped = true; }, { capture: true, once: true });
@@ -1376,6 +1377,7 @@
     sideMenu(null);
     if (stepping) closeStep();                               // the open step gives the rail back
     showTab(view);
+    if (view === 'shop' && !showing && reveal !== 'quiet' && P && !((P.shop && P.shop.videos) || []).length && !pickTried && !shopBusy) { pickTried = true; shopSearch('', 'trending', 100); }   // Shop opened with nothing in it yet: what is selling now
     if (isPhone()) return void (reveal === 'quiet' ? 0 : drawer(true));
     if (!picking) { rail.open = !!reveal || !showing; rail.view = view; keepRail(); }
     applySizes();
@@ -1626,7 +1628,7 @@
     put(body, '--chatw', sizes.chat && clamp(sizes.chat, 300, Math.max(300, Math.min(680, innerWidth - 640))));
     var chatW = body.classList.contains('chat-off') ? 0 : $('.chat').offsetWidth + 10;
     var room = Math.max(240, Math.min(1100, innerWidth - 56 - chatW - 440));   // wide enough to read Shop data; the board keeps at least 420
-    var railW = clamp(sizes.rail || clamp(innerWidth * 0.2, 260, 340), 220, room);
+    var railW = clamp(sizes.rail || clamp(innerWidth * 0.2, 260, 340), RAIL_MIN, room);
     if (picking || stepping) railW = Math.max(railW, Math.min(440, room));   // choosing happens in the rail: give it room
     var railOn = !phone && (rail.open || !!picking || stepping);
     body.classList.toggle('pane-open', railOn);
@@ -1636,37 +1638,35 @@
     measure();
     if (P) drawTimeline();
   }
-  (function () {                                              // the rail's edge: drag it wider, or all the way left to shut it. From shut, a drag right opens it.
-    var bar = $('#rz-rail'), pane = $('#side-pane'), SHUT = 150;
+  (function () {                                              // the rail's edge: drag it wider or narrower. It stops at a small size and never shuts by being dragged: the icon that opened it shuts it. From shut, a drag right opens it.
+    var bar = $('#rz-rail'), pane = $('#side-pane');
     var keep = function () { try { localStorage.setItem('ember_sizes_canvas', JSON.stringify(sizes)); } catch (e) {} keepRail(); };
     bar.addEventListener('pointerdown', function (e) {
       if (e.button || isPhone()) return;
       e.preventDefault();
-      var held = !!picking || stepping, from = e.clientX, size = railShown() ? pane.offsetWidth : 0, before = sizes.rail, shut = false;
+      var held = !!picking || stepping, from = e.clientX, was = railShown(), size = was ? pane.offsetWidth : 0;
       document.body.classList.add('resizing', 'rz-x'); bar.classList.add('on');
       var move = function (ev) {
         var w = size + ev.clientX - from;
-        shut = w < SHUT && !held;                              // a step that is open keeps the rail open
-        if (shut) rail.open = false; else { if (!held) rail.open = true; sizes.rail = w; }
-        applySizes();
+        if (!was && w < 60) return;                           // shut, and not pulled out yet
+        if (!held) rail.open = true;
+        sizes.rail = Math.max(RAIL_MIN, w); applySizes();
       };
       var up = function () {
         window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
         document.body.classList.remove('resizing', 'rz-x'); bar.classList.remove('on');
-        if (shut) { if (before) sizes.rail = before; else delete sizes.rail; }   // shut keeps the width it had, for the next time it opens
-        else if (railShown()) sizes.rail = pane.offsetWidth;
+        if (railShown()) sizes.rail = pane.offsetWidth;
         keep(); applySizes();
       };
       window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
     });
     bar.addEventListener('dblclick', function () { delete sizes.rail; keep(); applySizes(); });
-    bar.addEventListener('keydown', function (e) {             // arrow keys nudge it; left from narrow shuts it
+    bar.addEventListener('keydown', function (e) {             // arrow keys nudge it
       var d = { ArrowLeft: -24, ArrowRight: 24 }[e.key];
       if (!d || isPhone()) return;
       e.preventDefault(); e.stopPropagation();
       if (!railShown()) { if (d > 0) rail.open = true; }
-      else if (d < 0 && pane.offsetWidth <= 220 && !picking && !stepping) rail.open = false;
-      else { sizes.rail = pane.offsetWidth + d; applySizes(); sizes.rail = pane.offsetWidth; }
+      else { sizes.rail = Math.max(RAIL_MIN, pane.offsetWidth + d); applySizes(); sizes.rail = pane.offsetWidth; }
       keep(); applySizes();
     });
   })();
@@ -1764,6 +1764,7 @@
     bubble: bubble, showNext: showNext, seek: seek, projectId: projectId, newProject: newProject, quiet: quiet, send: send,
     onChange: function (fn) { changeListeners.push(fn); },
     ask: function (text) { input.value = text; input.focus(); input.setSelectionRange(text.length, text.length); },
+    rail: function (view) { railLib(view === 'shop' ? 'shop' : 'media', true); },   // the pilot opens the rail on Media or Shop
     act: function (name) { runAction(name, {}); },
     record: function () { startRecording(); },
     post: function () { openSheet('post'); if (!(P.post && P.post.render)) $('#post-export').click(); },

@@ -9,8 +9,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="styles.css?v=17">
-<link rel="stylesheet" href="studio.css?v=62">
-<link rel="stylesheet" href="flow.css?v=30">
+<link rel="stylesheet" href="studio.css?v=64">
+<link rel="stylesheet" href="flow.css?v=32">
 </head>
 <body class="studio">
 
@@ -58,7 +58,7 @@
     <h3 id="side-menu-t"></h3>
     <div class="side-items" id="side-items" role="menu"></div>
   </div>
-  <div class="rz rz-rail" id="rz-rail" role="separator" aria-orientation="vertical" tabindex="0" aria-label="Resize the rail" title="Drag to make the rail wider, or all the way left to close it. Double-click to reset."></div>
+  <div class="rz rz-rail" id="rz-rail" role="separator" aria-orientation="vertical" tabindex="0" aria-label="Resize the rail" title="Drag to make the rail wider or narrower. Double-click to reset."></div>
 </aside>
 
 <header class="s-top">
@@ -244,9 +244,7 @@
 <!-- Step 1, Create: the flow. A node canvas you can pan and zoom; drag a line out of a node to add the next. -->
 <div class="flow" id="flow" hidden>
   <div class="flow-top">
-    <span class="orb" aria-hidden="true"></span>
-    <div class="flow-say"><small id="flow-step"></small><p id="flow-say"></p></div>
-    <button type="button" class="f-switch" id="flow-guided" role="switch" aria-checked="true" title="Guided: I add the next step as you finish each one. Off: you drag the wires yourself."><i></i>Guided</button>
+    <button type="button" class="f-switch" id="flow-guided" role="switch" aria-checked="false" title="Guided: six steps, one after another, and I add the next as you finish each. Off: drag things onto the board and connect them yourself."><i></i>Guided</button>
     <button type="button" class="link" id="flow-reset">Start over</button>
   </div>
   <div class="flow-view" id="flow-view">
@@ -293,7 +291,7 @@
   </div>
 </div>
 
-<script src="studio.js?v=68"></script>
-<script src="flow.js?v=53"></script>
+<script src="studio.js?v=70"></script>
+<script src="flow.js?v=56"></script>
 </body>
 </html>

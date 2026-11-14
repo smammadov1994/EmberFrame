@@ -738,7 +738,6 @@ body.chat-off .s-body, body.chat-off.canvas .s-body { grid-template-columns: min
 body.chat-off .chat, body.chat-off .rz-chat { display: none; }
 .chat { animation: chat-in 0.42s var(--ease) both; }
 @keyframes chat-in { from { opacity: 0; transform: translateX(-26px); } }
-.flow.zoom-up .flow-zoom { bottom: 86px; }                    /* the board is too narrow for both: the zoom buttons move up, clear of the field */
 .cv-body { padding-bottom: 96px; }                           /* the browse view ends above the field */
 .chat-hide { margin-left: 2px; }
 
@@ -810,15 +809,44 @@ body.picking .as.unpickable { opacity: 0.4; }
 .dock-for button { flex: none; width: 24px; height: 24px; border: 0; border-radius: 50%; background: rgba(15, 23, 42, 0.08); color: var(--txt-2); font-size: 11px; cursor: pointer; }
 .dock-for button:hover { background: rgba(15, 23, 42, 0.16); color: var(--txt); }
 
+/* ---------- cards grow with the rail ----------
+   The number of columns changes at a few widths only, so between them the cards simply grow. Each card is a container:
+   its labels are sized from the card's own width, and a small card shows less, so the picture is never buried. */
+.lib-list, .lib-list.shop { --cols: 2; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); }
+@container rail (min-width: 400px) { .lib-list { --cols: 3; } .lib-list.shop { --cols: 2; } }
+@container rail (min-width: 620px) { .lib-list { --cols: 4; } .lib-list.shop { --cols: 3; } }
+@container rail (min-width: 860px) { .lib-list { --cols: 5; } .lib-list.shop { --cols: 4; } }
+@container rail (min-width: 1060px) { .lib-list { --cols: 6; } .lib-list.shop { --cols: 5; } }
+.as, .vcard { container: card / inline-size; }
+.as .meta { padding: clamp(10px, 18cqw, 22px) clamp(5px, 7cqw, 9px) clamp(4px, 6cqw, 8px); }
+.as .meta b { font-size: clamp(9.5px, 10cqw, 12.5px); }
+.as .meta span { font-size: clamp(8.5px, 8cqw, 10.5px); }
+.as .src { left: clamp(4px, 5cqw, 7px); top: clamp(4px, 5cqw, 7px); padding: clamp(2px, 2.4cqw, 3px) clamp(3px, 4.5cqw, 6px); font-size: clamp(7.5px, 7.5cqw, 9.5px); }
+@media (min-width: 761px) {
+  .as .add, .as .rm { top: clamp(4px, 5cqw, 7px); width: clamp(20px, 24cqw, 28px); height: clamp(20px, 24cqw, 28px); border-radius: clamp(6px, 7cqw, 9px); font-size: clamp(12px, 14cqw, 17px); }
+  .as .add { right: clamp(4px, 5cqw, 7px); } .as .rm { left: clamp(4px, 5cqw, 7px); font-size: clamp(9px, 10cqw, 12px); }
+}
+.lib-list.shop .vcard b { font-size: clamp(9.5px, 8.5cqw, 13px); }
+.lib-list.shop .vcard .ov { gap: 2px; padding: clamp(12px, 18cqw, 26px) clamp(5px, 6cqw, 9px) clamp(5px, 6cqw, 8px); }
+.lib-list.shop .vcard .ov > span { font-size: clamp(8px, 7.5cqw, 11px); }
+.lib-list.shop .vcard .chip { padding: clamp(2px, 2.6cqw, 4px) clamp(4px, 5cqw, 7px); font-size: clamp(8px, 7.5cqw, 10.5px); }
+.lib-list.shop .vcard .vtop { left: clamp(4px, 4.5cqw, 6px); top: clamp(4px, 4.5cqw, 6px); right: clamp(4px, 4.5cqw, 6px); }
+.lib-list.shop .vcard .pick { padding: clamp(4px, 5cqw, 7px) clamp(7px, 8cqw, 11px); font-size: clamp(9.5px, 9cqw, 12px); white-space: nowrap; }
+@container card (max-width: 112px) {                          /* a small card: the picture, one line of name, one figure */
+  .as .meta span { display: none; }
+  .lib-list.shop .vcard b { -webkit-line-clamp: 1; }
+  .lib-list.shop .vcard .ov > span, .lib-list.shop .vcard .chip + .chip { display: none; }
+}
+
 /* ---------- a wider rail shows more about each Shop video ---------- */
 .lib-rail { container: rail / inline-size; }
 .vcard .vmore { display: none; }
 @container rail (min-width: 440px) {
-  .lib-list.shop { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+  .lib-list.shop { gap: 10px; }
   .lib-list.shop .vcard { display: flex; flex-direction: column; background: #F6F8FC; }
   .lib-list.shop .vcard img { flex: none; }
   .lib-list.shop .vcard .ov { position: static; padding: 10px 11px 2px; background: none; }
-  .lib-list.shop .vcard .ov b { font-size: 13px; }
+  .lib-list.shop .vcard .ov b { font-size: 13px; color: var(--txt); } .lib-list.shop .vcard .ov > span { color: var(--txt-3); }   /* under the picture now, on the card's own pale ground */
   .lib-list.shop .vcard .vmore { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; padding: 8px 11px 12px; }
   .lib-list.shop .vcard .vmore span { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
   .lib-list.shop .vcard .vmore i { font: 9.5px var(--mono); font-style: normal; letter-spacing: 0.05em; text-transform: uppercase; color: var(--txt-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -828,7 +856,6 @@ body.picking .as.unpickable { opacity: 0.4; }
   .lib-list.shop .vcard .pick { top: 32%; }
 }
 @container rail (min-width: 700px) {
-  .lib-list.shop { grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); }
   .lib-list.shop .vcard .vmore .wide { display: flex; grid-column: 1 / -1; }
 }
 
@@ -839,7 +866,7 @@ html:has(body.studio) { background: #FFFFFF; color-scheme: light; }
 .studio .btn-accent:hover { border-color: var(--accent-hover); }
 /* the step strip above the board (easy.css): small and quiet. Nothing is filled: the step you are on is named in ink
    beside a blue number, the others are grey. */
-.studio .ez-steps { gap: 2px; padding: 0 22px 6px; }
+.studio .ez-steps { gap: 2px; padding: 9px 240px 6px 16px; }
 .studio .ez-steps li { gap: 2px; }
 .studio .ez-steps li + li::before { width: 12px; background: var(--hair-2); }
 .studio .ez-steps button { gap: 7px; padding: 0 8px 0 5px; border: 0; background: transparent; color: var(--txt-3); font-size: 12.5px; }
@@ -849,6 +876,7 @@ html:has(body.studio) { background: #FFFFFF; color-scheme: light; }
 .studio .ez-steps li.done i, .studio .ez-steps li.now.done i { color: var(--accent-text); background: var(--accent-tint); box-shadow: none; }
 .studio .ez-steps li.now button { background: transparent; color: var(--txt); font-weight: 500; }
 @media (min-width: 761px) { .studio .ez-steps button { min-height: 28px; } }
+@media (max-width: 760px) { .studio .ez-steps { padding: 4px 12px 6px; } }
 .studio ::selection { background: rgba(37, 99, 235, 0.22); }
 
 /* =====================================================================================
