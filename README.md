@@ -131,7 +131,7 @@ plans: [ /* Pay as you go, Creator, Creator Pro */ ]
 
 ## How it is built
 
-- **No dependencies.** Fonts (Geist and Geist Mono) are the only thing loaded from outside.
+- **No dependencies.** Fonts (Geist and Geist Mono on the marketing pages, Roboto and Roboto Mono in the studio) are the only thing loaded from outside.
 - **Progressive motion.** Every animation is an enhancement. With JavaScript off, or with
   reduced motion turned on, the page is fully visible and static.
 - **Videos behave.** They autoplay muted, loop, show a poster until loaded and pause off screen.
