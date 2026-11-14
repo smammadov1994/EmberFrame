@@ -5,6 +5,14 @@ are in [STUDIO.md](STUDIO.md).
 
 ## 14 November 2026
 
+**Quieter steps, a plain board, new type**
+- The step strip above the board is small and grey. Nothing is filled: the step you are on is named in
+  ink beside a blue number.
+- The pale blue glow at the top of the board, and the one behind the page, are gone. The board is plain
+  white with its dots.
+- The studio's type is Roboto, with Roboto Mono for labels, prices and data. The marketing pages keep
+  Geist.
+
 **The library moved into the left rail**
 - The Media and Shop panel beside the board is gone. Media and Shop are the top two icons of the strip
   on the left edge. Press one and the rail opens beside the board to show it; press it again, or the

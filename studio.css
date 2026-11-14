@@ -9,7 +9,8 @@ body.studio {
   --shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 18px 40px -20px rgba(15, 23, 42, 0.25); color-scheme: light;
   --r: 18px; --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
   padding: 0; height: 100vh; height: 100dvh; overflow: hidden; display: flex; flex-direction: column;
-  background: radial-gradient(60% 50% at 18% 0%, rgba(37, 99, 235, 0.04), transparent 70%), var(--canvas); color: var(--txt); font-size: 15px;
+  --sans: Roboto, system-ui, -apple-system, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; --mono: 'Roboto Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  background: var(--canvas); color: var(--txt); font-size: 15px;
 }
 :where(.studio) button, :where(.studio) input, :where(.studio) textarea { font: inherit; color: var(--txt); }
 .studio svg { display: block; }
@@ -836,8 +837,18 @@ html:has(body.studio) { background: #FFFFFF; color-scheme: light; }
 .studio .btn { box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06); }
 .studio .btn-accent { border-color: var(--accent); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 8px 20px -10px rgba(37, 99, 235, 0.7); }
 .studio .btn-accent:hover { border-color: var(--accent-hover); }
-.studio .ez-steps button:not(:disabled):hover { background: rgba(15, 23, 42, 0.05); }
-.studio .ez-steps li.now button { border-color: rgba(37, 99, 235, 0.45); }
+/* the step strip above the board (easy.css): small and quiet. Nothing is filled: the step you are on is named in ink
+   beside a blue number, the others are grey. */
+.studio .ez-steps { gap: 2px; padding: 0 22px 6px; }
+.studio .ez-steps li { gap: 2px; }
+.studio .ez-steps li + li::before { width: 12px; background: var(--hair-2); }
+.studio .ez-steps button { gap: 7px; padding: 0 8px 0 5px; border: 0; background: transparent; color: var(--txt-3); font-size: 12.5px; }
+.studio .ez-steps button:not(:disabled):hover { background: rgba(15, 23, 42, 0.05); color: var(--txt); }
+.studio .ez-steps i { width: 18px; height: 18px; font-size: 10.5px; }
+.studio .ez-steps li.done button { color: var(--txt-2); }
+.studio .ez-steps li.done i, .studio .ez-steps li.now.done i { color: var(--accent-text); background: var(--accent-tint); box-shadow: none; }
+.studio .ez-steps li.now button { background: transparent; color: var(--txt); font-weight: 500; }
+@media (min-width: 761px) { .studio .ez-steps button { min-height: 28px; } }
 .studio ::selection { background: rgba(37, 99, 235, 0.22); }
 
 /* =====================================================================================

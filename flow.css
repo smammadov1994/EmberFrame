@@ -1,9 +1,7 @@
 /* The guided flow: a workflow canvas you play left to right. One node is open at a time;
    finishing it folds it into a small card, draws a wire, and opens the next. */
 .flow { position: fixed; z-index: 30; left: 0; right: 0; top: 58px; bottom: 0; display: flex; flex-direction: column; overflow: hidden;
-  background:
-    radial-gradient(50% 60% at 50% 0%, rgba(37, 99, 235, 0.05), transparent 70%),
-    var(--canvas);
+  background: var(--canvas);
   animation: flow-in 0.5s var(--ease) both; }
 .flow[hidden] { display: none; }
 .flow.leaving { animation: flow-out 0.45s var(--ease) both; pointer-events: none; }
