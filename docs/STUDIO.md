@@ -17,7 +17,7 @@ After a change to `server/ember.py` the server must be stopped and started again
 | The chat session (left, hidden until you talk) | The conversation with Ember: replies, steps, approval cards. |
 | The step panel (in the rail) | Steps 2 to 6, a file's details and Final video open in the left rail, which opens and widens for them. Close the step (×, Esc, or press Media or Shop) and the rail goes back to how it was left: shut, or on Media or Shop. Step 1 uses Media and Shop themselves. On a phone it is a sheet at the bottom. |
 
-Nothing opens by itself when the page loads. The step that is waiting says "Start here" and pulses.
+Nothing opens by itself when the page loads. The step that is waiting pulses. A step shows only its icon and its question; once something is picked for it, the picture and name of what was picked show inside the node.
 
 ## The six steps
 
