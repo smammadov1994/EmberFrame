@@ -114,13 +114,13 @@
 .flow-toast[hidden] { display: none; }
 @keyframes toast-in { from { opacity: 0; transform: translate(-50%, -8px); } }
 .gn.nudge { animation: gn-nudge 0.45s ease-in-out 2; border-color: var(--accent); }
-.gn.next { border-color: rgba(37, 99, 235, 0.85); cursor: pointer; animation: gn-next 2.4s ease-in-out infinite; }   /* nothing is open: this step is waiting for a click */
-.gn.next .fn-t small { color: var(--accent-text); }
+.gn.upnext { border-color: rgba(37, 99, 235, 0.85); cursor: pointer; animation: gn-next 2.4s ease-in-out infinite; }   /* nothing is open: this step is waiting for a click */
+.gn.upnext .fn-t small { color: var(--accent-text); }
 .gn { flex-wrap: nowrap; } .gn .fn-t { min-width: 0; }   /* a node's lines stay inside its box: a long label is cut short, never pushed out beside it */
 .gn .fn-t small, .gn .fn-t b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gn.chatty { border-color: rgba(37, 99, 235, 0.85); } .gn.chatty .fn-t small { color: var(--accent-text); }   /* this step is being answered in the chat */
 @keyframes gn-next { 0%, 100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0), 0 22px 50px -30px rgba(15, 23, 42, 0.22); } 50% { box-shadow: 0 0 0 7px rgba(37, 99, 235, 0.16), 0 26px 60px -28px rgba(37, 99, 235, 0.55); } }
-@media (prefers-reduced-motion: reduce) { .gn.next, .gn.nudge { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .gn.upnext, .gn.nudge { animation: none; } }
 @keyframes gn-nudge { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-7px); } 75% { transform: translateX(7px); } }
 .gn[hidden] { display: none; }
 @keyframes fp-in { from { opacity: 0; transform: translateX(30px); } }
@@ -289,7 +289,7 @@ body.canvas .f-switch { min-height: 32px; font-size: 13px; } body.canvas .flow-t
 .gn { border-color: #BCD2FA; background: linear-gradient(180deg, #F4F8FF, #E7F0FE); box-shadow: 0 18px 40px -28px rgba(37, 99, 235, 0.6); }
 .gn:hover { border-color: var(--accent); }
 .gn .fn-ic { background: #FFFFFF; box-shadow: inset 0 0 0 1px #BCD2FA; }
-.gn.next { background: #FFFFFF; }
+.gn.upnext { background: #FFFFFF; }
 .gn.done, .gn.final { --txt: #FFFFFF; --txt-2: rgba(255, 255, 255, 0.88); --txt-3: rgba(255, 255, 255, 0.76); --accent-text: #FFFFFF; --ok: #FFFFFF; --hair-2: rgba(255, 255, 255, 0.42); color: #FFFFFF; }
 .gn.done { border-color: #1D4ED8; background: linear-gradient(180deg, #3B82F6, #2563EB); box-shadow: 0 18px 40px -24px rgba(37, 99, 235, 0.85); }
 .gn.done:hover { border-color: #1E3A8A; }
@@ -305,3 +305,15 @@ body.canvas .f-switch { min-height: 32px; font-size: 13px; } body.canvas .flow-t
 .gn.media.incut { border-color: var(--accent); }
 .gn.sel { border-color: #1E3A8A; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.45), 0 22px 50px -26px rgba(37, 99, 235, 0.7); }
 .gw.on { filter: none; }
+
+/* ---------- a simple node: an icon and one line. What was chosen shows inside the node as a picture. ---------- */
+.gn .fn-t small:empty, .gn-s:empty { display: none; }
+.gn.plain { padding: 14px 16px; }
+.gn.plain .gn-h { gap: 12px; }
+.gn.plain .fn-ic { width: 40px; height: 40px; border-radius: 12px; } .gn.plain .fn-ic svg { width: 19px; height: 19px; }
+.gn.plain .fn-t b { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; font-size: 15.5px; line-height: 1.3; white-space: normal; }
+.gn.done.pic { padding: 10px 12px; }
+.gn.done .fn-ic.pic { width: 58px; height: 80px; border-radius: 10px; }
+.gn.done.pic .gn-h { gap: 12px; }
+.gn.done.pic .fn-t { gap: 3px; }
+.gn.done.pic .fn-t b { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; font-size: 13.5px; line-height: 1.25; white-space: normal; }

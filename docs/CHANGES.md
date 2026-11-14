@@ -5,6 +5,16 @@ are in [STUDIO.md](STUDIO.md).
 
 ## 14 November 2026
 
+**Simpler nodes**
+- A step on the board is its icon and its question, nothing else. The small label ("Start here",
+  "Next", "To do") and the grey line under it are gone; the line is still there as a tooltip.
+- The moment you pick a selling video, a product or one of your own files for a step, its picture
+  shows inside the node, large, with its name.
+- When the next step opens, the board keeps the step you just finished in view beside it.
+- Fixed: a pale blue oval appeared at the top right of the step that was waiting when the mouse was
+  over it. It was the node's remove button drawn with the wrong style.
+- The board opens centred the same way whether the rail was open or shut when you left it.
+
 **Quieter steps, a plain board, new type**
 - The step strip above the board is small and grey. Nothing is filled: the step you are on is named in
   ink beside a blue number.

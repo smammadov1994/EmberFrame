@@ -73,6 +73,7 @@
   var V = G.view || { x: 0, y: 0, k: 1 };
   var pushT = 0, pushOff = false;
   function keep() {                                           // saved in this browser at once, and beside the project on the server a moment later
+    if (view.clientWidth) V.w = view.clientWidth;             // the board's width goes with the view, so it opens centred the same way in a wider or narrower board
     G.view = V; delete G.pristine; G.saved = Date.now();
     try { localStorage.setItem(KEY, JSON.stringify(G)); } catch (e) {}
     if (pushOff) return;
@@ -599,14 +600,21 @@
     return { w: r.width - pw, h: phone && !panel.hidden ? r.height * 0.42 : r.height, left: r.left, top: r.top };
   }
   function toWorld(cx, cy) { var r = view.getBoundingClientRect(); return { x: (cx - r.left - V.x) / V.k, y: (cy - r.top - V.y) / V.k }; }
-  function focusOn(n) { var r = room(); V.x = r.w / 2 - (n.x + NW / 2) * V.k; V.y = r.h / 2 - (n.y + NH / 2) * V.k; apply(true); keep(); }
+  var viewW = 0;                                             // the board's width when the view was last placed: a later change in width moves the view with it
+  function focusOn(n) {                                       // centre on the node; the step that feeds it stays in view beside it when both fit
+    var r = room(), x0 = n.x, x1 = n.x + NW, y0 = n.y, y1 = n.y + NH, src = ins(n.id)[0];
+    if (src && (Math.max(x1, src.x + NW) - Math.min(x0, src.x) + 48) * V.k <= r.w && (Math.max(y1, src.y + NH) - Math.min(y0, src.y) + 48) * V.k <= r.h) {
+      x0 = Math.min(x0, src.x); x1 = Math.max(x1, src.x + NW); y0 = Math.min(y0, src.y); y1 = Math.max(y1, src.y + NH);
+    }
+    V.x = r.w / 2 - (x0 + x1) / 2 * V.k; V.y = r.h / 2 - (y0 + y1) / 2 * V.k; apply(true); keep(); viewW = view.clientWidth;
+  }
   var fitted = null;                                         // the view Fit last set: while the board still shows it, a change in the board's width fits again
   function fit(still) {
     var seen = G.nodes.filter(function (n) { return n.type !== 'final' || finalShown(); }); if (!seen.length) seen = G.nodes;
     var r = room(), xs = seen.map(function (n) { return n.x; }), ys = seen.map(function (n) { return n.y; });
     var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs) + NW, y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys) + NH;
     V.k = clamp(Math.min((r.w - 96) / (x1 - x0), (r.h - 96) / (y1 - y0)), 0.05, 1.15);   // as small as it takes: Fit always shows every node
-    V.x = r.w / 2 - (x0 + x1) / 2 * V.k; V.y = r.h / 2 - (y0 + y1) / 2 * V.k; apply(!still); keep();
+    V.x = r.w / 2 - (x0 + x1) / 2 * V.k; V.y = r.h / 2 - (y0 + y1) / 2 * V.k; apply(!still); keep(); viewW = view.clientWidth;
     fitted = { x: V.x, y: V.y, k: V.k };
   }
   function zoomAt(cx, cy, k) {
@@ -701,18 +709,20 @@
     var m = T[n.type], done = isDone(n), need = needs(n), sum = summary(n), box = e.querySelector('.gn-s');
     var cur = !G.open && current(), wait = !!cur && cur.id === n.id;   // nothing is open: the step that is waiting asks to be clicked
     var chatty = (n.type === 'subject' || n.type === 'creator') && n.d.via === 'chat' && !done;   // this step is being answered in the chat
-    e.className = 'gn ' + n.type + (done ? ' done' : '') + (n.id === G.open ? ' open' : '') + (wait ? ' next' : '') + (chatty ? ' chatty' : '') + (need.length ? ' need' : '') + (e.classList.contains('new') ? ' new' : '') +
+    var pic = done && sum && sum.img;                         // a finished step shows what was chosen inside the node: its picture and its name
+    var plain = !done && !sum && !chatty && !need.length;     // a step still to do is its icon and its question, nothing more
+    e.className = 'gn ' + n.type + (done ? ' done' : '') + (pic ? ' pic' : '') + (plain ? ' plain' : '') + (n.id === G.open ? ' open' : '') + (wait ? ' upnext' : '') + (chatty ? ' chatty' : '') + (need.length ? ' need' : '') + (e.classList.contains('new') ? ' new' : '') +
       (n.type === 'film' && n.d.film && n.d.film.state === 'run' ? ' busy' : '');
     e.style.left = n.x + 'px'; e.style.top = n.y + 'px';
-    var ic = e.querySelector('.fn-ic'), pic = done && sum && sum.img;   // a finished step shows what was chosen: its picture and its name
+    var ic = e.querySelector('.fn-ic');
     ic.classList.toggle('pic', !!pic); ic.style.backgroundImage = pic ? 'url("' + sum.img + '")' : ''; ic.innerHTML = pic ? '' : svg(m.icon);
     e.querySelector('b').textContent = done && sum ? sum.t : chatty ? (n.type === 'creator' ? 'Describing who is on camera' : 'Typing what it is about') : done || sum ? m.title : m.ask;
-    e.querySelector('.fn-t small').textContent = done ? m.title : chatty ? 'Chat' : need.length ? 'Waiting' : n.id === G.open ? 'Now' : wait ? (n.type === 'subject' ? 'Start here' : 'Next') : 'To do';
-    e.title = done && sum ? m.title + ': ' + sum.t : '';
+    e.querySelector('.fn-t small').textContent = done ? m.title : chatty ? 'Chat' : need.length ? 'Waiting' : '';
+    e.title = done && sum ? m.title + ': ' + sum.t : plain ? m.hint : '';
     box.textContent = '';
     if (done) return;                                        // a finished node says so with its green border, nothing more
     if (sum) { var th = el('span', { class: 'th', html: sum.img ? '' : svg(m.icon) }); if (sum.img) th.style.backgroundImage = 'url("' + sum.img + '")'; box.appendChild(th); box.appendChild(el('div', {}, [el('b', { text: sum.t }), el('span', { text: sum.s })])); }
-    else box.appendChild(el('p', { text: need.length ? 'Needs ' + need.map(function (x) { return T[x.type].title.toLowerCase(); }).join(' and ') + ' first.' : chatty ? 'Type in the box at the bottom of the board.' : m.hint }));
+    else if (!plain) box.appendChild(el('p', { text: need.length ? 'Needs ' + need.map(function (x) { return T[x.type].title.toLowerCase(); }).join(' and ') + ' first.' : 'Type in the box at the bottom of the board.' }));
   }
   function paintMedia(n, e) {
     var p = P(), ic = e.querySelector('.fn-ic'), small = e.querySelector('.fn-t small'), b = e.querySelector('.fn-t b'), box = e.querySelector('.gn-s');
@@ -1494,7 +1504,7 @@
     draw(); renderPanel();
     if (claimed) { var c0 = claimed; claimed = null; if (G.guided && G.open === c0.id) complete(c0); }
     settle();
-    if (!G.view || window.innerWidth <= 760) { V = { x: 0, y: 0, k: 1 }; if (G.open && node(G.open)) focusOn(node(G.open)); else fit(); world.classList.remove('glide'); } else apply(false);   // a phone always opens on the whole board: a view saved on a wide screen would show nothing
+    if (!G.view || window.innerWidth <= 760) { V = { x: 0, y: 0, k: 1 }; if (G.open && node(G.open)) focusOn(node(G.open)); else fit(); world.classList.remove('glide'); } else { if (V.w && view.clientWidth && V.w !== view.clientWidth) V.x += (view.clientWidth - V.w) / 2; viewW = view.clientWidth; apply(false); }   // a phone always opens on the whole board: a view saved on a wide screen would show nothing
   }
   function close() {
     if (root.hidden || root.classList.contains('leaving')) return;
@@ -1523,7 +1533,6 @@
   });
   window.addEventListener('resize', function () { if (!root.hidden) apply(false); });
   if (window.ResizeObserver) {                                // the rail or the chat opened, closed or was dragged: a fitted board fits again, any other view keeps its centre
-    var viewW = 0;
     new ResizeObserver(function () {
       var w = view.clientWidth;
       if (w && viewW && w !== viewW && !root.hidden) {
