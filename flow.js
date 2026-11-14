@@ -55,7 +55,7 @@
 
   /* ---------- the step panel lives in the left rail: the board keeps the whole right side ---------- */
   var docked = false;
-  (function () { var lib = $('#lib'); if (lib && window.innerWidth > 760) { lib.appendChild(panel); panel.classList.add('in-rail'); docked = true; } })();
+  (function () { var pane = $('#side-pane'); if (pane && window.innerWidth > 760) { pane.appendChild(panel); panel.classList.add('in-rail'); docked = true; } })();
 
   /* ---------- the graph ---------- */
   function rid() { return 'n' + Math.random().toString(36).slice(2, 8); }
@@ -600,12 +600,14 @@
   }
   function toWorld(cx, cy) { var r = view.getBoundingClientRect(); return { x: (cx - r.left - V.x) / V.k, y: (cy - r.top - V.y) / V.k }; }
   function focusOn(n) { var r = room(); V.x = r.w / 2 - (n.x + NW / 2) * V.k; V.y = r.h / 2 - (n.y + NH / 2) * V.k; apply(true); keep(); }
-  function fit() {
+  var fitted = null;                                         // the view Fit last set: while the board still shows it, a change in the board's width fits again
+  function fit(still) {
     var seen = G.nodes.filter(function (n) { return n.type !== 'final' || finalShown(); }); if (!seen.length) seen = G.nodes;
     var r = room(), xs = seen.map(function (n) { return n.x; }), ys = seen.map(function (n) { return n.y; });
     var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs) + NW, y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys) + NH;
     V.k = clamp(Math.min((r.w - 96) / (x1 - x0), (r.h - 96) / (y1 - y0)), 0.05, 1.15);   // as small as it takes: Fit always shows every node
-    V.x = r.w / 2 - (x0 + x1) / 2 * V.k; V.y = r.h / 2 - (y0 + y1) / 2 * V.k; apply(true); keep();
+    V.x = r.w / 2 - (x0 + x1) / 2 * V.k; V.y = r.h / 2 - (y0 + y1) / 2 * V.k; apply(!still); keep();
+    fitted = { x: V.x, y: V.y, k: V.k };
   }
   function zoomAt(cx, cy, k) {
     var r = view.getBoundingClientRect(), px = cx - r.left, py = cy - r.top; k = clamp(k, 0.1, 1.6);
@@ -912,7 +914,7 @@
   document.addEventListener('keydown', function (e) {        // Backspace or Delete takes the selected node off the board
     if ((e.key !== 'Backspace' && e.key !== 'Delete') || root.hidden || (!G.open && !selCount()) || e.metaKey || e.ctrlKey || e.altKey) return;
     var t = e.target, tag = t && t.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable) || (t && t.closest && t.closest('.flow-panel, .chat-head, .chat-log, .chat-foot, #lib, .dlg, .menu-pop'))) return;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable) || (t && t.closest && t.closest('.flow-panel, .chat-head, .chat-log, .chat-foot, .side, .dlg, .menu-pop'))) return;
     if (selCount()) {                                         // several selected: they all go
       e.preventDefault();
       var ids = Object.keys(SEL), gone = 0; SEL = {};
@@ -1520,6 +1522,17 @@
     sync(); draw(); renderPanel(); focusOn(G.nodes[0]); keep();
   });
   window.addEventListener('resize', function () { if (!root.hidden) apply(false); });
+  if (window.ResizeObserver) {                                // the rail or the chat opened, closed or was dragged: a fitted board fits again, any other view keeps its centre
+    var viewW = 0;
+    new ResizeObserver(function () {
+      var w = view.clientWidth;
+      if (w && viewW && w !== viewW && !root.hidden) {
+        if (fitted && fitted.x === V.x && fitted.y === V.y && fitted.k === V.k) fit(true);
+        else { V.x += (w - viewW) / 2; apply(false); keep(); }
+      }
+      viewW = w;
+    }).observe(view);
+  }
   setInterval(function () {                                   // a render this page did not start itself (it was reloaded mid-render): look for its clip
     var waiting = G.nodes.filter(function (m) { return m.type === 'film' && m.d.film && m.d.film.state === 'run' && m.d.film.resumed; });
     if (!waiting.length || root.hidden || !P() || (S.acting && S.acting())) return;
@@ -1553,6 +1566,7 @@
     return lines.join('\n');
   }
   window.EmberFlow = { open: open0, close: close, place: place, dropped: dropped, lay: lay, fit: fit, shopClick: shopClick, describe: describe, boardText: boardText, dropHint: dropHint, guiding: function () { return !!current(); }, showFinal: function () { var fn = finalNode(); if (fn) open(fn.id); },
+    closeStep: function () { if (G.open) { G.open = null; keep(); draw(); renderPanel(); } },   // the rail was asked for something else
     working: function () { var on = !root.hidden && G.open && node(G.open); return !!on && on.type !== 'media' && on.type !== 'final' && !isDone(on); },   // a step is open and not finished
     refresh: function () { if (!root.hidden) { sync(); draw(); renderPanel(); } }, seen: function () { try { return !!localStorage.getItem(SEEN); } catch (e) { return true; } } };
 })();

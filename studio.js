@@ -160,7 +160,7 @@
     lastNamed = named[0] || null;
     if (!named.length) return;
     products.rows = named.concat(products.rows.filter(function (r) { return !r.named; }));
-    shopKind = 'products'; showTab('shop'); drawLibrary();
+    shopKind = 'products'; railShop(); drawLibrary();
     var list = $('#lib-shop'); if (list) list.scrollTop = 0;
   }
   function productClick(r) {                                  // a product: the videos that sell it, or (while step one is waiting) the product itself as the subject
@@ -206,6 +206,7 @@
     document.body.classList.toggle('picking', !!picking);
     if (!picking) chatPoint(false);
     if (!!picking !== was) applySizes();                     // the rail gets room while it is the place to choose
+    if (isPhone()) { if (picking && tapped) drawer(true); else if (!picking) drawer(false); }   // a phone: the drawer opens for the choice, once the person has touched the page
     if (picking && !was) {
       showTab('shop');
       if (P && !((P.shop && P.shop.videos) || []).length && !pickTried && !shopBusy) { pickTried = true; shopSearch('', 'trending', 100); }
@@ -387,11 +388,17 @@
     else P.tracks.video.splice(index === undefined ? P.tracks.video.length : index, 0, c);
     sel = c.id; changed();
   }
-  function showTab(which) {
-    $$('.lib-tabs [role=tab]').forEach(function (x) { x.setAttribute('aria-selected', String(x.getAttribute('data-tab') === which)); });
-    $('#lib-media').hidden = which !== 'media'; $('#lib-shop').hidden = which !== 'shop';
+  /* ---------- the library lives in the left rail: Media (your files) or Shop (what is selling) ---------- */
+  var libView = 'media', rail = { open: false, view: 'media' }, tapped = false;   // rail: what the person left it as; a step can hold it open on top of that
+  try { var rail0 = JSON.parse(localStorage.getItem('ember_rail') || 'null'); if (rail0) rail = { open: !!rail0.open, view: rail0.view === 'shop' ? 'shop' : 'media' }; } catch (e) {}
+  document.addEventListener('pointerdown', function () { tapped = true; }, { capture: true, once: true });
+  function isPhone() { return innerWidth <= 760; }
+  function showTab(which) {                                   // which list the rail holds. It does not open the rail: railLib does
+    libView = which === 'shop' ? 'shop' : 'media';
+    $('#lib-media').hidden = libView !== 'media'; $('#lib-shop').hidden = libView !== 'shop';
+    $('#lib-title').textContent = libView === 'shop' ? 'Shop' : 'Media';
+    if (side) paintRail();
   }
-  $$('.lib-tabs [role=tab]').forEach(function (b) { b.addEventListener('click', function () { showTab(b.getAttribute('data-tab')); }); });
   function uploadFiles(files, where, at) {                    // where: 'library' (default), 'cut' (also onto the timeline), 'chat' (hand it to Ember)
     var chain = Promise.resolve(), added = [];
     Array.prototype.forEach.call(files, function (f) {
@@ -399,7 +406,7 @@
         var n = note('Uploading ' + f.name);
         var fd = new FormData(); fd.append('file', f);
         return api('/api/upload', { method: 'POST', body: fd }).then(function (r) {
-          setProject(r.project); showTab('media'); added.push(r.asset);
+          setProject(r.project); if (where === 'canvas' || where === 'chat' || where === 'cut') showTab('media'); else railLib('media', true); added.push(r.asset);   // a file sent to the library: the rail opens on it
           var a = A(r.asset);
           if (where === 'cut' && a.kind !== 'image') { addAsset(r.asset, a.kind === 'audio' ? undefined : indexAt(at === undefined ? 1e9 : at), a.kind === 'audio' ? Math.max(0, at || 0) : undefined); n.textContent = 'Added ' + f.name + ' to the cut.'; }
           else if (where === 'canvas' && window.EmberFlow) {    // the first file starts a workflow (or wires into the node it landed on); the rest sit beside it
@@ -436,7 +443,7 @@
   window.addEventListener('dragover', function (e) {
     if (!hasFiles(e) || !P) return;
     e.preventDefault(); e.dataTransfer.dropEffect = 'copy';
-    var place = dropPlace(e), zone = place === 'canvas' ? $('#flow-view') : place === 'chat' ? $('.chat') : $('#lib');
+    var place = dropPlace(e), zone = place === 'canvas' ? $('#flow-view') : place === 'chat' ? $('.chat') : side;
     $('#drop-text').textContent = place === 'canvas' ? (window.EmberFlow && window.EmberFlow.dropHint ? window.EmberFlow.dropHint() : 'Drop to put it on the canvas') : place === 'chat' ? 'Drop to give it to Ember' : 'Drop to add to your library';
     $$('.drop-here').forEach(function (n) { if (n !== zone) n.classList.remove('drop-here'); });
     zone.classList.add('drop-here');
@@ -839,10 +846,10 @@
       glowChanged(clipsWere);
       if (JSON.stringify(describe()) !== JSON.stringify(turnStart)) receipt();
       if (JSON.stringify(describe()) !== was && isBrowse()) closeBrowse();   // an edit is landing: show the editor
-      if (P.shop && JSON.stringify(P.shop.videos.map(function (v) { return v.id; })) !== hadShop) { shopKind = 'videos'; showTab('shop'); drawLibrary(); }   // Ember fetched videos: the Shop tab shows them
+      if (P.shop && JSON.stringify(P.shop.videos.map(function (v) { return v.id; })) !== hadShop) { shopKind = 'videos'; railShop(); drawLibrary(); }   // Ember fetched videos: the rail opens on Shop to show them
     } else if (ev.type === 'products') {                      // Ember looked through the catalogue: the Shop tab shows what it found, not the list that was there
       products.rows = ev.rows || []; products.query = ev.query || ''; products.sort = ev.sort || 'units'; products.note = ''; products.tried = true; turnProducts = true;
-      shopKind = 'products'; showTab('shop'); drawLibrary();
+      shopKind = 'products'; railShop(); drawLibrary();
       scrollLog();
     } else if (ev.type === 'canvas') {
       openBrowse(ev.canvas);
@@ -1143,7 +1150,7 @@
     var out = [], sv = shopVideos();
     if (lastNamed) {                                         // the answer was about a product from the catalogue: the next moves are about that product
       var pr = lastNamed, nm = String(pr.product || 'this product').slice(0, 80);
-      out.push({ label: 'See its selling videos', fn: function () { shopKind = 'products'; showTab('shop'); productClick(pr); } });
+      out.push({ label: 'See its selling videos', fn: function () { shopKind = 'products'; railShop(); productClick(pr); } });
       out.push({ label: 'Make a video for it', say: 'Make a video for "' + nm + '" (product id ' + pr.product_id + '). Find the videos that already sell it, pick the best one to model it on, and lay the video out.' });
       out.push({ label: 'Who sells the most of these?', say: 'Which brands sell the most of this kind of product ("' + nm + '") right now?' });
     } else if (isBrowse() && sv.length) {
@@ -1336,9 +1343,10 @@
     btn.setAttribute('aria-expanded', 'true');
     menuOpen = btn;
   }
-  /* The menus live in a strip down the left edge. Folded, it shows one icon for each menu; a click opens it
-     into a panel, and a menu unfolds its items in place. Picking an item, a click outside or Esc folds it again. */
-  var side = $('#side'), sideTog = $('#side-tog'), sideNow = null;
+  /* The left rail. A strip of icons down the left edge. Media and Shop open the rail beside the board; its edge drags
+     wider, or all the way left to shut it. A menu icon flies its items out; picking one, a click outside or Esc folds
+     them away. A step that is open on the board takes the rail over until it is closed. On a phone the rail is a drawer. */
+  var side = $('#side'), sideTog = $('#side-tog'), sideFly = $('#side-menu'), sideMenuNow = null;
   var SIDE_ICONS = {
     File: '<path d="M6 3h5.5L15 6.5V16a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM11.5 3v3.5H15"/>',
     Edit: '<path d="M4 16l.8-3.4 8.8-8.8a1.4 1.4 0 0 1 2 0l.6.6a1.4 1.4 0 0 1 0 2l-8.8 8.8zM12.2 5.2l2.6 2.6"/>',
@@ -1347,39 +1355,65 @@
     History: '<circle cx="10" cy="10" r="6.5"/><path d="M10 6.500V10l2.500 1.500"/>',
     Help: '<circle cx="10" cy="10" r="6.5"/><path d="M8 8.200a2 2 0 1 1 3 1.700c-.6.4-1 .8-1 1.600M10 13.700v.1"/>'
   };
-  function sideIsOpen() { return document.body.classList.contains('side-open'); }
-  function sideShow(name) {
-    sideNow = name;
-    $$('.side-sec', side).forEach(function (sec) {
-      var on = sec.dataset.menu === name, box = $('.side-items', sec);
-      sec.classList.toggle('open', on); $('.side-h', sec).setAttribute('aria-expanded', String(on));
-      box.textContent = '';
-      if (!on || !P) return;
-      MENUS[name]().forEach(function (it) {
-        if (!it) return void box.appendChild(el('hr'));
-        box.appendChild(el('button', { type: 'button', role: 'menuitem', disabled: it.off ? '' : null, onclick: function () { sideSet(false); it.on(); } },
-          [el('i', { text: it.mark ? '✓' : '' }), el('span', { text: it.t }), it.k ? el('kbd', { text: it.k }) : null]));
-      });
+  function railShop() { if (stepping) showTab('shop'); else railLib('shop', isPhone() ? 'quiet' : true); }   // results landed in Shop: show them, without closing a step that is open or covering a phone's screen
+  function drawerOpen() { return document.body.classList.contains('side-open'); }
+  function railShown() { return isPhone() ? drawerOpen() : rail.open || !!picking || stepping; }
+  function keepRail() { try { localStorage.setItem('ember_rail', JSON.stringify(rail)); } catch (e) {} }
+  function paintRail() {                                      // the strip says what the rail is showing
+    var on = railShown();
+    $$('.side-lib', side).forEach(function (b) { var act = on && !stepping && b.dataset.view === libView; b.classList.toggle('on', act); b.setAttribute('aria-pressed', String(act)); });
+    [sideTog, $('#side-open')].forEach(function (b) { b.setAttribute('aria-expanded', String(on)); b.setAttribute('aria-label', on ? 'Close the rail' : 'Open the rail'); });
+    sideTog.title = on ? 'Close the rail' : 'Open the rail';
+  }
+  function drawer(open) {                                     // a phone: the rail slides in over the page
+    document.body.classList.toggle('side-open', !!open && isPhone());
+    if (!open) sideMenu(null);
+    paintRail();
+  }
+  function closeStep() { if (window.EmberFlow && window.EmberFlow.closeStep) window.EmberFlow.closeStep(); }
+  function railLib(view, reveal) {                             // Media or Shop: open the rail on it. Pressing the one that is showing shuts the rail (reveal: never shut)
+    var showing = railShown() && !stepping && libView === view;
+    sideMenu(null);
+    if (stepping) closeStep();                               // the open step gives the rail back
+    showTab(view);
+    if (isPhone()) return void (reveal === 'quiet' ? 0 : drawer(true));
+    if (!picking) { rail.open = !!reveal || !showing; rail.view = view; keepRail(); }
+    applySizes();
+  }
+  function railToggle() {
+    if (isPhone()) return drawer(!drawerOpen());
+    var on = railShown();
+    sideMenu(null);
+    if (on && (stepping || picking)) closeStep();            // a step holds the rail open: closing the rail closes the step
+    rail.open = !on; keepRail(); applySizes();
+  }
+  function sideMenu(name) {                                   // a menu's items, flown out beside the strip; null folds them away
+    sideMenuNow = name && P ? name : null;
+    $$('.side-h[data-menu]', side).forEach(function (b) { var on = b.dataset.menu === sideMenuNow; b.classList.toggle('on', on); b.setAttribute('aria-expanded', String(on)); });
+    var box = $('#side-items'); box.textContent = '';
+    sideFly.hidden = !sideMenuNow;
+    if (!sideMenuNow) return;
+    $('#side-menu-t').textContent = name; box.setAttribute('aria-label', name);
+    MENUS[name]().forEach(function (it) {
+      if (!it) return void box.appendChild(el('hr'));
+      box.appendChild(el('button', { type: 'button', role: 'menuitem', disabled: it.off ? '' : null, onclick: function () { drawer(false); it.on(); } },
+        [el('i', { text: it.mark ? '✓' : '' }), el('span', { text: it.t }), it.k ? el('kbd', { text: it.k }) : null]));
     });
   }
-  function sideSet(open) {
-    document.body.classList.toggle('side-open', open);
-    [sideTog, $('#side-open')].forEach(function (b) { b.setAttribute('aria-expanded', String(open)); });
-    sideTog.title = open ? 'Close the menu' : 'Open the menu';
-    if (!open) sideShow(null);
-  }
   Object.keys(MENUS).forEach(function (name) {
-    var h = el('button', { type: 'button', class: 'side-h', 'aria-expanded': 'false', title: name,
-      html: '<svg viewBox="0 0 20 20" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">' + SIDE_ICONS[name] + '</g></svg>' +
-        '<span class="lb">' + name + '</span><svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5l4.5 4.5L6 12.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' });
-    h.addEventListener('click', function () { if (!sideIsOpen()) { sideSet(true); sideShow(name); } else sideShow(sideNow === name ? null : name); });
-    var sec = el('div', { class: 'side-sec', 'data-menu': name }, [h, el('div', { class: 'side-items', role: 'menu', 'aria-label': name })]);
-    $('#side-menus').appendChild(sec);
+    var h = el('button', { type: 'button', class: 'side-h', 'data-menu': name, 'aria-haspopup': 'true', 'aria-expanded': 'false', 'aria-label': name, title: name,
+      html: '<svg viewBox="0 0 20 20" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">' + SIDE_ICONS[name] + '</g></svg>' });
+    h.addEventListener('click', function () { sideMenu(sideMenuNow === name ? null : name); });
+    $('#side-menus').appendChild(h);
   });
-  sideTog.addEventListener('click', function () { sideSet(!sideIsOpen()); });
-  $('#side-open').addEventListener('click', function () { sideSet(!sideIsOpen()); });
-  side.addEventListener('click', function (e) { if (e.target === side && !sideIsOpen()) sideSet(true); });   // the empty part of the folded strip opens it too
-  document.addEventListener('pointerdown', function (e) { if (sideIsOpen() && !side.contains(e.target) && !e.target.closest('#side-open')) sideSet(false); });
+  $$('.side-lib', side).forEach(function (b) { b.addEventListener('click', function () { railLib(b.dataset.view); }); });
+  sideTog.addEventListener('click', railToggle);
+  $('#side-open').addEventListener('click', railToggle);
+  $('#pane-x').addEventListener('click', function () { if (isPhone()) return drawer(false); rail.open = false; keepRail(); applySizes(); });
+  document.addEventListener('pointerdown', function (e) {
+    if (sideMenuNow && !sideFly.contains(e.target) && !e.target.closest('.side-h[data-menu]')) sideMenu(null);
+    if (isPhone() && drawerOpen() && !side.contains(e.target) && !e.target.closest('#side-open')) drawer(false);
+  });
   $('#acct-btn').addEventListener('click', function () {
     var b = $('#acct-btn'); if (menuOpen === b) return closeMenu();
     openMenu(b, [{ info: 1, t: user }, { info: 1, t: 'Render machine: ' + (STATUS.gpu && STATUS.gpu.online ? 'online' : 'offline') },
@@ -1387,11 +1421,11 @@
       { t: 'Your projects…', on: projectsDialog }, { t: 'Sign out', on: function () { try { localStorage.removeItem('ember_session'); } catch (e) {} location.href = 'index.html'; } }]);
   });
   document.addEventListener('pointerdown', function (e) { if (menuOpen && !menuPop.contains(e.target) && !e.target.closest('#acct-btn')) closeMenu(); });
-  document.addEventListener('keydown', function (e) { if (e.key !== 'Escape') return; if (menuOpen) { closeMenu(); e.stopPropagation(); } else if (sideIsOpen()) { sideSet(false); e.stopPropagation(); } else if (!dlg.hidden) { closeDialog(); e.stopPropagation(); } }, true);
+  document.addEventListener('keydown', function (e) { if (e.key !== 'Escape') return; if (menuOpen) { closeMenu(); e.stopPropagation(); } else if (sideMenuNow) { sideMenu(null); e.stopPropagation(); } else if (isPhone() && drawerOpen()) { drawer(false); e.stopPropagation(); } else if (!dlg.hidden) { closeDialog(); e.stopPropagation(); } }, true);
 
   $('#chat-clear').addEventListener('click', function () { if (busy) return; api('/api/reset', { method: 'POST' }).then(function () { showLog([]); note('A clean chat about the same video. The last one is in History.'); }); });
 
-  /* ---------- the browse view: the library rail grown over the editor, drawn from blocks Ember composed ---------- */
+  /* ---------- the browse view: a full view over the editor, drawn from blocks Ember composed ---------- */
   var num = function (x) { x = Number(x) || 0; return x >= 1e6 ? (x / 1e6).toFixed(1).replace('.0', '') + 'M' : x >= 1e4 ? Math.round(x / 1e3) + 'K' : x >= 1e3 ? (x / 1e3).toFixed(1).replace('.0', '') + 'K' : (Math.round(x * 100) / 100).toLocaleString(); };
   var METRIC = { views: ['views', ''], likes: ['likes', ''], units_7d: ['units / 7 days', ''], price: ['price', '$'], seconds: ['seconds', ''] };
   var HUES = ['#2563EB', '#60A5FA', '#F59E0B', '#14B8A6', '#8B5CF6', '#EC4899', '#1E3A8A', '#94A3B8'];
@@ -1565,7 +1599,7 @@
     c.blocks.forEach(function (b, i) { var n = drawBlock(b); n.style.setProperty('--i', i); body.appendChild(n); });
     body.scrollTop = keep ? top : 0;
   }
-  function openBrowse(c) {                                    // the rail grows over the editor
+  function openBrowse(c) {                                    // the full view opens over the editor
     if (!P) return;
     c = c || P.canvas || defaultCanvas();
     if (!c.local) P.canvas = c;
@@ -1576,7 +1610,7 @@
     renderCanvas(c);                                        // after the class: at phone width the view only has a size once it is open
     syncBrowseBtn(); drawChips();
   }
-  function closeBrowse() {                                    // and folds back into the rail
+  function closeBrowse() {
     if (!isBrowse()) return;
     edBox.classList.remove('browse'); $('#canvas').setAttribute('aria-hidden', 'true');
     syncBrowseBtn(); drawChips();
@@ -1590,15 +1624,53 @@
     applySizes.t = setTimeout(function () { body.classList.remove('sizing'); }, 150);
     var put = function (node, name, v) { if (phone || !v) node.style.removeProperty(name); else node.style.setProperty(name, Math.round(v) + 'px'); };
     put(body, '--chatw', sizes.chat && clamp(sizes.chat, 300, Math.max(300, Math.min(680, innerWidth - 640))));
-    var railW = sizes.rail && clamp(sizes.rail, 170, Math.max(170, Math.min(1100, edBox.clientWidth - 420)));   // wide enough to read Shop data; the board keeps at least 420
-    if (picking || stepping) railW = Math.max(railW || 0, Math.min(440, Math.max(170, edBox.clientWidth - 330)));   // choosing happens in the rail: give it room
-    put(edBox, '--rail', railW);
+    var chatW = body.classList.contains('chat-off') ? 0 : $('.chat').offsetWidth + 10;
+    var room = Math.max(240, Math.min(1100, innerWidth - 56 - chatW - 440));   // wide enough to read Shop data; the board keeps at least 420
+    var railW = clamp(sizes.rail || clamp(innerWidth * 0.2, 260, 340), 220, room);
+    if (picking || stepping) railW = Math.max(railW, Math.min(440, room));   // choosing happens in the rail: give it room
+    var railOn = !phone && (rail.open || !!picking || stepping);
+    body.classList.toggle('pane-open', railOn);
+    if (phone) body.style.removeProperty('--sidew'); else { body.style.setProperty('--sidew', (railOn ? Math.round(railW) : 0) + 'px'); body.classList.remove('side-open'); }
+    paintRail();
     put(edBox, '--tlh', sizes.tl && clamp(sizes.tl, 236, Math.max(236, Math.min(600, edBox.clientHeight - 230))));
     measure();
     if (P) drawTimeline();
   }
+  (function () {                                              // the rail's edge: drag it wider, or all the way left to shut it. From shut, a drag right opens it.
+    var bar = $('#rz-rail'), pane = $('#side-pane'), SHUT = 150;
+    var keep = function () { try { localStorage.setItem('ember_sizes_canvas', JSON.stringify(sizes)); } catch (e) {} keepRail(); };
+    bar.addEventListener('pointerdown', function (e) {
+      if (e.button || isPhone()) return;
+      e.preventDefault();
+      var held = !!picking || stepping, from = e.clientX, size = railShown() ? pane.offsetWidth : 0, before = sizes.rail, shut = false;
+      document.body.classList.add('resizing', 'rz-x'); bar.classList.add('on');
+      var move = function (ev) {
+        var w = size + ev.clientX - from;
+        shut = w < SHUT && !held;                              // a step that is open keeps the rail open
+        if (shut) rail.open = false; else { if (!held) rail.open = true; sizes.rail = w; }
+        applySizes();
+      };
+      var up = function () {
+        window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
+        document.body.classList.remove('resizing', 'rz-x'); bar.classList.remove('on');
+        if (shut) { if (before) sizes.rail = before; else delete sizes.rail; }   // shut keeps the width it had, for the next time it opens
+        else if (railShown()) sizes.rail = pane.offsetWidth;
+        keep(); applySizes();
+      };
+      window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+    });
+    bar.addEventListener('dblclick', function () { delete sizes.rail; keep(); applySizes(); });
+    bar.addEventListener('keydown', function (e) {             // arrow keys nudge it; left from narrow shuts it
+      var d = { ArrowLeft: -24, ArrowRight: 24 }[e.key];
+      if (!d || isPhone()) return;
+      e.preventDefault(); e.stopPropagation();
+      if (!railShown()) { if (d > 0) rail.open = true; }
+      else if (d < 0 && pane.offsetWidth <= 220 && !picking && !stepping) rail.open = false;
+      else { sizes.rail = pane.offsetWidth + d; applySizes(); sizes.rail = pane.offsetWidth; }
+      keep(); applySizes();
+    });
+  })();
   [['#rz-chat', 'chat', 'x', function () { return $('.chat').offsetWidth; }],
-   ['#rz-rail', 'rail', 'x', function () { return $('#lib').offsetWidth; }],
    ['#rz-tl', 'tl', 'y', function () { return $('.tl').offsetHeight; }]].forEach(function (h) {
     var bar = $(h[0]), key = h[1], axis = h[2], read = h[3];
     var keep = function () { try { localStorage.setItem('ember_sizes_canvas', JSON.stringify(sizes)); } catch (e) {} };
@@ -1708,7 +1780,7 @@
   function toEditor() { openSheet(null); if (window.EmberFlow) window.EmberFlow.showFinal(); }
   var monEl = $('.mon'), monHome = $('.ed-top');                // the preview player: parked out of sight, shown inside the Final video panel
   document.body.classList.add('canvas');
-  $('.ed').appendChild($('#flow'));                             // the board is the main screen, beside Ember and the media rail
+  $('.ed').appendChild($('#flow'));                             // the board is the main screen, beside Ember and the rail
 
   /* ---------- start ---------- */
   if (!user) return gate('Sign in to open the studio', 'The studio keeps your library, your cuts and your conversation with Ember.', null, 'Go to sign in', 'index.html');

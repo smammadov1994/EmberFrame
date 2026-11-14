@@ -12,10 +12,10 @@ After a change to `server/ember.py` the server must be stopped and started again
 | Part | What it is |
 |---|---|
 | The board (canvas) | The whole right side, and the whole studio. Steps and files are nodes; whatever is wired into **Final video**, in order, is the video. |
-| The rail (left) | **Media** (your files) and **Shop** (TikTok Shop videos or products, with search and an order switch). Step 1 is chosen here. Pulled wider, each card shows the product's numbers. |
+| The rail (left edge) | A strip of icons. **Media** (your files) and **Shop** (TikTok Shop videos or products, with search and an order switch) open the rail beside the board; pressing the one that is showing, or the arrow at its top, shuts it. Its right edge drags: wider to show more (each Shop card then shows the product's numbers), or all the way left to shut it; from shut, dragging the edge right opens it. The width and whether it was open are remembered. Step 1 is chosen here, and the rail opens by itself for it. Below Media and Shop are the menus (File, Edit, View, Tools, History, Help): an icon flies its items out; picking one, a click outside or Esc folds them away. |
 | The message field (bottom centre) | The only place to type to Ember. Ember's face beside it shows or hides the chat session. |
 | The chat session (left, hidden until you talk) | The conversation with Ember: replies, steps, approval cards. |
-| The step panel (in the rail) | Steps 2 to 6, a file's details and Final video open in the left rail, over Media and Shop, and the rail widens. Close it (× or Esc) to get Media and Shop back. Step 1 uses Media and Shop themselves. On a phone it is a sheet at the bottom. |
+| The step panel (in the rail) | Steps 2 to 6, a file's details and Final video open in the left rail, which opens and widens for them. Close the step (×, Esc, or press Media or Shop) and the rail goes back to how it was left: shut, or on Media or Shop. Step 1 uses Media and Shop themselves. On a phone it is a sheet at the bottom. |
 
 Nothing opens by itself when the page loads. The step that is waiting says "Start here" and pulses.
 
@@ -133,7 +133,7 @@ Where it is used:
   views gained in a day or least crowded; in stock only; a commission floor; a ceiling on how many
   videos sell it; a price ceiling; a category word. A ranking of products shows each product once.
   Ask in words: "skincare with at least 15% commission that is growing and not crowded".
-- Pulling the rail wider on the Shop tab shows more about each video: under the poster, the product's
+- Pulling the rail wider on Shop shows more about each video: under the poster, the product's
   7-day units and revenue, sales trend, commission, rating, how many videos sell it, views gained in
   a day and stock; wider still, the creator and category. The rail can be pulled to most of the page.
 - Otherwise numbers are shown to the person only when they ask for numbers.
@@ -278,5 +278,6 @@ cleared. The project (files, the cut, captions) is saved on the server.
 - Supabase accounts and storage (`supabase/` holds the data model only). Until then an account is
   only a name sent by the browser: anyone who can reach the server and knows an account's name can
   open its projects and files. The studio must not be put on the open internet like this.
-- The phone layout is basic: the rail sits on top, the board opens fitted to the screen, a step opens
+- The phone layout is basic: the board fills the screen and opens fitted to it, the rail is a drawer
+  behind the button at the top left (it slides in by itself when step 1 needs a choice), a step opens
   as a sheet above the message field. It has not been tried on a real phone.

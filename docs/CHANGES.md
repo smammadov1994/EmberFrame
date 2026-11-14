@@ -5,6 +5,26 @@ are in [STUDIO.md](STUDIO.md).
 
 ## 14 November 2026
 
+**The library moved into the left rail**
+- The Media and Shop panel beside the board is gone. Media and Shop are the top two icons of the strip
+  on the left edge. Press one and the rail opens beside the board to show it; press it again, or the
+  arrow at the top of the rail, and it shuts. The board gets the room back.
+- The rail's right edge drags. Drag it right to see more (most of the page, if you want the Shop
+  numbers), or all the way left to shut it. From shut, dragging the edge right opens it again.
+  Double-click the edge for the usual width. The studio remembers the width and whether it was open.
+- A step you open on the board still opens in the rail, and the rail opens for it by itself. Close
+  the step and the rail goes back to how you left it. Pressing Media or Shop while a step is open
+  closes the step and shows that list.
+- The rail also opens by itself when Ember puts results in Shop and when you upload a file to Media.
+- The menus (File, Edit, View, Tools, History, Help) stay in the strip, under Media and Shop. An icon
+  flies its items out beside the strip instead of widening it.
+- A board that is fitted to the screen fits itself again when the rail or the chat opens, closes or is
+  dragged. A board you have moved or zoomed keeps its centre.
+- The full view ("Open all videos", the arrows button at the top of the rail) opens over the board, as
+  before.
+- On a phone the board now fills the screen. The button at the top left slides the rail in with Media,
+  Shop and the menus; it slides in by itself when step 1 needs a choice.
+
 **A new look: white with blue**
 - The studio is white. The orange is gone: buttons, links, wires and the step that is waiting are blue.
 - Steps on the board are blue. A step that is waiting is pale blue, a finished step is filled blue with
@@ -14,9 +34,9 @@ are in [STUDIO.md](STUDIO.md).
 
 **The menus moved to the left**
 - File, Edit, View, Tools, History and Help are no longer a bar across the top. They sit in a strip of
-  icons down the left edge. Click the strip, or any icon, and it opens into a panel; a menu unfolds its
-  items in place. Picking an item, a click outside or Esc folds it again.
-- On a phone the strip is hidden; the button at the top left slides the panel in.
+  icons down the left edge. Click an icon and its items open beside the strip. Picking an item, a click
+  outside or Esc folds them away.
+- On a phone the strip is hidden; the button at the top left slides it in.
 - The top bar now holds only the project name, your account and "Next: post".
 
 ## 12 November 2026

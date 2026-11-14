@@ -9,24 +9,60 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="styles.css?v=17">
-<link rel="stylesheet" href="studio.css?v=60">
-<link rel="stylesheet" href="flow.css?v=27">
+<link rel="stylesheet" href="studio.css?v=61">
+<link rel="stylesheet" href="flow.css?v=28">
 </head>
 <body class="studio">
 
-<!-- The menus: a strip on the left edge that opens into a panel. studio.js fills #side-menus. -->
-<aside class="side" id="side" aria-label="Menu">
-  <button type="button" class="side-tog" id="side-tog" aria-expanded="false" aria-controls="side-menus" title="Open the menu">
-    <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12M4 10h12M4 14h12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="lb">Menu</span>
-  </button>
-  <nav class="side-menus" id="side-menus" aria-label="Menus"></nav>
-  <a class="side-logo" href="index.html" title="Emberframe home">
-    <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="1.5" y="1.5" width="17" height="17" rx="5" fill="none" stroke="currentColor" stroke-width="1.5"/><rect class="core" x="6" y="6" width="8" height="8" rx="2.5"/></svg><span class="lb">Emberframe</span>
-  </a>
+<!-- The left rail. A strip of icons: Media and Shop open the rail beside the board (its edge drags wider, or shut);
+     a menu icon flies its items out. studio.js fills #side-menus and #side-menu; flow.js puts the open step in #side-pane. -->
+<aside class="side" id="side" aria-label="Library and menus">
+  <div class="side-strip">
+    <button type="button" class="side-tog" id="side-tog" aria-expanded="false" aria-controls="side-pane" aria-label="Open the rail" title="Open the rail">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="15" height="13" rx="3"/><path d="M8 3.500v13"/></g></svg>
+    </button>
+    <button type="button" class="side-h side-lib" data-view="media" aria-pressed="false" aria-label="Media: your files" title="Media: your files">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.500" width="14" height="11" rx="2.500"/><path d="M8.500 7.800v4.400l3.700-2.200z"/></g></svg>
+    </button>
+    <button type="button" class="side-h side-lib" data-view="shop" aria-pressed="false" aria-label="Shop: selling videos" title="Shop: selling videos">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7.500h10l-.8 8.500H5.800zM7.500 7.500V6.200a2.500 2.500 0 0 1 5 0v1.300"/></g></svg><i id="shop-count"></i>
+    </button>
+    <span class="side-sep" aria-hidden="true"></span>
+    <nav class="side-menus" id="side-menus" aria-label="Menus"></nav>
+    <a class="side-logo" href="index.html" aria-label="Emberframe home" title="Emberframe home">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="1.5" y="1.5" width="17" height="17" rx="5" fill="none" stroke="currentColor" stroke-width="1.5"/><rect class="core" x="6" y="6" width="8" height="8" rx="2.5"/></svg>
+    </a>
+  </div>
+  <div class="side-pane" id="side-pane">
+    <section class="lib" id="lib" aria-label="Library">
+      <div class="lib-rail">
+        <div class="lib-tabs">
+          <b id="lib-title">Media</b>
+          <button type="button" class="icon-btn grow-btn" id="lib-grow" title="Open the full view" aria-label="Open the full view">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M11.5 4.5h4v4M15.5 4.5L11 9M8.5 15.5h-4v-4M4.5 15.5L9 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <label class="icon-btn up" title="Upload" aria-label="Upload">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 13.5v-9M6 8l4-4 4 4M4.5 15.5h11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <input type="file" id="upload" accept="video/*,audio/*,image/*" multiple hidden>
+          </label>
+          <button type="button" class="icon-btn pane-x" id="pane-x" title="Close the rail" aria-label="Close the rail">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12 5l-5 5 5 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+        <div class="lib-list" id="lib-media"></div>
+        <div class="lib-list shop" id="lib-shop" hidden></div>
+      </div>
+    </section>
+  </div>
+  <div class="side-fly" id="side-menu" hidden>
+    <h3 id="side-menu-t"></h3>
+    <div class="side-items" id="side-items" role="menu"></div>
+  </div>
+  <div class="rz rz-rail" id="rz-rail" role="separator" aria-orientation="vertical" tabindex="0" aria-label="Resize the rail" title="Drag to make the rail wider, or all the way left to close it. Double-click to reset."></div>
 </aside>
 
 <header class="s-top">
-  <button type="button" class="icon-btn side-btn" id="side-open" aria-expanded="false" aria-controls="side" aria-label="Open the menu" title="Menu">
+  <button type="button" class="icon-btn side-btn" id="side-open" aria-expanded="false" aria-controls="side" aria-label="Open the rail" title="Media, Shop and menus">
     <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12M4 10h12M4 14h12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
   </button>
   <div class="s-title">
@@ -64,40 +100,21 @@
   <!-- Editor -->
   <main class="ed">
     <div class="rz rz-chat" id="rz-chat" role="separator" aria-orientation="vertical" tabindex="0" aria-label="Resize Ember's panel" title="Drag to resize. Double-click to reset."></div>
-    <div class="rz rz-rail" id="rz-rail" role="separator" aria-orientation="vertical" tabindex="0" aria-label="Resize the library" title="Drag to resize. Double-click to reset."></div>
     <div class="rz rz-tl" id="rz-tl" role="separator" aria-orientation="horizontal" tabindex="0" aria-label="Resize the timeline" title="Drag to resize. Double-click to reset."></div>
+    <!-- The browse view: a full view of the library or of what is selling, laid over the editor. -->
+    <section class="panel lib-wide" id="canvas" aria-label="Browse" aria-hidden="true">
+      <div class="cv-head">
+        <div class="cv-id"><span class="tag"><span class="orb mini" aria-hidden="true"></span>Ember's view</span><h2 id="cv-title"></h2><p id="cv-sub"></p></div>
+        <div class="cv-actions">
+        <button type="button" class="btn" id="cv-nums" aria-pressed="false" hidden><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 13V8M8 13V3M13 13V6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span>Show the numbers</span></button>
+        <button type="button" class="btn" id="cv-close">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13 8H4M7.5 4l-4 4 4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Back to the canvas<kbd>Esc</kbd>
+        </button>
+        </div>
+      </div>
+      <div class="cv-body" id="cv-body"></div>
+    </section>
     <div class="ed-top">
-      <!-- The library rail. It can grow over the whole editor and become the browse view. -->
-      <section class="panel lib" id="lib" aria-label="Library">
-        <div class="lib-rail">
-          <div class="lib-tabs" role="tablist">
-            <button type="button" role="tab" data-tab="media" aria-selected="true">Media</button>
-            <button type="button" role="tab" data-tab="shop" aria-selected="false">Shop<i id="shop-count"></i></button>
-            <button type="button" class="icon-btn grow-btn" id="lib-grow" title="Open the full view" aria-label="Open the full view">
-              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M11.5 4.5h4v4M15.5 4.5L11 9M8.5 15.5h-4v-4M4.5 15.5L9 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </button>
-            <label class="icon-btn up" title="Upload" aria-label="Upload">
-              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 13.5v-9M6 8l4-4 4 4M4.5 15.5h11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              <input type="file" id="upload" accept="video/*,audio/*,image/*" multiple hidden>
-            </label>
-          </div>
-          <div class="lib-list" id="lib-media"></div>
-          <div class="lib-list shop" id="lib-shop" hidden></div>
-        </div>
-        <div class="lib-wide" id="canvas" aria-hidden="true">
-          <div class="cv-head">
-            <div class="cv-id"><span class="tag"><span class="orb mini" aria-hidden="true"></span>Ember's view</span><h2 id="cv-title"></h2><p id="cv-sub"></p></div>
-            <div class="cv-actions">
-            <button type="button" class="btn" id="cv-nums" aria-pressed="false" hidden><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 13V8M8 13V3M13 13V6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span>Show the numbers</span></button>
-            <button type="button" class="btn" id="cv-close">
-              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13 8H4M7.5 4l-4 4 4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Back to the canvas<kbd>Esc</kbd>
-            </button>
-            </div>
-          </div>
-          <div class="cv-body" id="cv-body"></div>
-        </div>
-      </section>
-
       <section class="panel mon" aria-label="Preview">
         <div class="stage" id="stage">
           <div class="screen" id="screen">
@@ -276,7 +293,7 @@
   </div>
 </div>
 
-<script src="studio.js?v=67"></script>
-<script src="flow.js?v=49"></script>
+<script src="studio.js?v=68"></script>
+<script src="flow.js?v=50"></script>
 </body>
 </html>

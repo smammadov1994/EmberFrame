@@ -1,4 +1,4 @@
-/* Emberframe Studio. Floating panels on a white canvas: Ember on the left, the editor
+/* Emberframe Studio. Floating panels on a white canvas: the rail and Ember on the left, the editor
    on the right. One accent (blue), soft depth, quiet until something is happening. */
 body.studio {
   --canvas: #FFFFFF; --card: #FFFFFF; --card-2: #FBFCFE; --well: #F3F6FB; --hair: rgba(15, 23, 42, 0.09); --hair-2: rgba(15, 23, 42, 0.16);
@@ -323,7 +323,7 @@ body.studio {
   .s-body { display: flex; flex-direction: column-reverse; }
   .chat { height: 68dvh; }
   .ed { display: flex; } .ed-top { display: flex; flex-direction: column; flex: none; }
-  .lib { order: 2; max-height: 250px; } .lib-list { grid-template-columns: repeat(3, 1fr); }
+  .lib-list { grid-template-columns: repeat(3, 1fr); }
   .mon { height: 62dvh; }
   .tool, .lib-tabs [role=tab], .s-steps button, .chat-chips button, .rcpt button, .sv button, .s-top .btn, .s-name { min-height: 44px; }
   .icon-btn, .send, .tp { width: 44px; height: 44px; } .play { width: 48px; height: 48px; } .shape button { width: 44px; height: 44px; }
@@ -426,24 +426,17 @@ body.studio {
 .vcard b { font-family: var(--sans); }
 
 /* =====================================================================================
-   The rail that grows. The library panel sits over the left of the editor. In browse
-   mode it widens across the whole editor, pushing the monitor and timeline off to the
-   right, then drops down to close the gap the timeline left. Going back reverses it.
+   The browse view. A full view of the library, or of what is selling, laid over the
+   whole editor. The library itself lives in the left rail (see the end of this file).
    ===================================================================================== */
-.ed { --rail: clamp(210px, 24.3vw, 490px); --tlh: 262px; --grow: cubic-bezier(0.3, 0.7, 0, 1); }   /* the default is the wide layout: a roomy chat and library, a compact timeline */
-.ed-top { display: flex; padding-left: calc(var(--rail) + 10px); }
+.ed { --tlh: 262px; --grow: cubic-bezier(0.3, 0.7, 0, 1); }
+.ed-top { display: flex; }
 .mon { flex: 1; }
-.lib { position: absolute; z-index: 12; left: 0; top: 0; width: var(--rail); bottom: calc(var(--tlh) + 10px); display: block;
-  transition: width 0.6s var(--grow) 0.14s, bottom 0.46s var(--grow), border-color 0.4s; }
-.ed.browse .lib { width: 100%; bottom: 0; border-color: rgba(37, 99, 235, 0.3); transition: width 0.6s var(--grow), bottom 0.5s var(--grow) 0.28s, border-color 0.4s; }
 .mon, .tl { transition: transform 0.6s var(--grow) 0.14s, opacity 0.35s ease 0.28s, visibility 0s; }
 .ed.browse .mon, .ed.browse .tl { opacity: 0; visibility: hidden; pointer-events: none; transition: transform 0.6s var(--grow), opacity 0.4s ease 0.14s, visibility 0s linear 0.6s; }
-.ed.browse .mon { transform: translateX(calc(var(--edw, 100vw) - var(--rail))); }
+.ed.browse .mon { transform: translateX(var(--edw, 100vw)); }
 .ed.browse .tl { transform: translateX(calc(var(--edw, 100vw) + 10px)); }
-/* two faces of the same panel: the narrow rail and the wide view. Both keep their final
-   size while the panel moves, so nothing reflows: the edge sweeps across and reveals it. */
-.lib-rail { position: absolute; left: 0; top: 0; bottom: 0; width: var(--rail); display: flex; flex-direction: column; transition: opacity 0.3s ease 0.4s, visibility 0s linear 0.4s; }
-.ed.browse .lib-rail { opacity: 0; visibility: hidden; transition: opacity 0.16s ease, visibility 0s linear 0.16s; }
+.lib-rail { display: flex; flex-direction: column; }
 .lib-wide { position: absolute; left: 0; top: 0; width: var(--edw, 100%); height: var(--edh, 100%); display: flex; flex-direction: column; opacity: 0; visibility: hidden;
   background: linear-gradient(180deg, #FFFFFF, #F8FAFD 220px); transition: opacity 0.2s ease, visibility 0s linear 0.2s; }
 .ed.browse .lib-wide { opacity: 1; visibility: visible; transition: opacity 0.5s ease 0.18s, visibility 0s; }
@@ -542,20 +535,16 @@ body.studio {
 @media (max-width: 1180px) { .lib-tabs { padding-left: 6px; padding-right: 6px; gap: 0; } .lib-tabs [role=tab] { padding: 0 8px; font-size: 13.5px; } .lib-tabs .icon-btn { width: 28px; } }
 @media (max-width: 760px) {
   .ed-top { padding-left: 0; }
-  .lib { position: static; width: auto; display: flex; flex-direction: column; transition: none; }
-  .lib-rail { position: static; width: auto; flex: 1; min-height: 0; }
   .lib-wide { display: none; }
   .ed.browse { z-index: 45; }
-  .ed.browse .lib { position: fixed; inset: 0; z-index: 40; width: auto; max-height: none; border-radius: 0; border: 0; }
   .cstats { grid-template-columns: 1fr 1fr; gap: 8px; } .cstat { padding: 14px; }
-  .ed.browse .lib-rail { display: none; }
   .ed.browse .lib-wide { display: flex; inset: 0; width: auto; height: auto; }
   .ed.browse .mon, .ed.browse .tl { transform: none; opacity: 1; visibility: visible; }
   .vbar .seg { margin-left: 0; overflow-x: auto; max-width: 100%; } .vbar .seg button, .nt-i button, .next button, .sv-all { min-height: 44px; }
   .cv-head kbd { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .lib, .mon, .tl, .lib-rail, .lib-wide, .ed.browse .lib, .ed.browse .mon, .ed.browse .tl, .ed.browse .lib-rail, .ed.browse .lib-wide { transition: none; }
+  .mon, .tl, .lib-wide, .ed.browse .mon, .ed.browse .tl, .ed.browse .lib-wide { transition: none; }
   .em-body, .em-eyes, .em-face, .em-o, .em-sparks circle, .flag, .nt-i, .next button, .cstats.auto .cstat::after { animation: none !important; }
 }
 .vcard .vchips { display: flex; gap: 5px; flex-wrap: wrap; }
@@ -594,14 +583,13 @@ body.studio {
 .rz-chat, .rz-rail { width: 10px; cursor: col-resize; }
 .rz-chat::after, .rz-rail::after { left: 3.5px; width: 3px; top: 50%; height: 56px; margin-top: -28px; }
 .rz-chat { left: -10px; top: 0; bottom: 0; }
-.rz-rail { left: var(--rail); top: 0; bottom: calc(var(--tlh) + 10px); }
 .rz-tl { left: 0; right: 0; bottom: var(--tlh); height: 10px; cursor: row-resize; }
 .rz-tl::after { top: 3.5px; height: 3px; left: 50%; width: 56px; margin-left: -28px; }
-.ed.browse .rz-rail, .ed.browse .rz-tl { display: none; }
+.ed.browse .rz-tl { display: none; }
 body.resizing { user-select: none; -webkit-user-select: none; }
 body.resizing.rz-x, body.resizing.rz-x * { cursor: col-resize !important; }
 body.resizing.rz-y, body.resizing.rz-y * { cursor: row-resize !important; }
-body.resizing .lib, body.resizing .mon, body.resizing .tl, body.resizing .lib-rail, body.sizing .lib, body.sizing .mon, body.sizing .tl, body.sizing .lib-rail { transition: none !important; }
+body.resizing .mon, body.resizing .tl, body.sizing .mon, body.sizing .tl { transition: none !important; }
 body.resizing video { pointer-events: none; }
 @media (max-width: 760px) { .rz { display: none; } }
 /* library cards keep their shape by padding, so grid rows always know their height */
@@ -718,22 +706,19 @@ body.in-flow #s-next { display: none; }
 
 /* =====================================================================================
    The canvas is the studio. The monitor and the timeline are gone from view; the board
-   fills the space beside the media rail, and the player lives in the Final video panel.
+   fills the editor, and the player lives in the Final video panel.
    ===================================================================================== */
 body.canvas .ed-top { padding-left: 0; }
 body.canvas .ed-top > .mon, body.canvas .tl, body.canvas .rz-tl { display: none; }
-body.canvas .lib, body.canvas .rz-rail { bottom: 0; }
-body.canvas .ed > .flow { position: absolute; z-index: 5; left: calc(var(--rail) + 10px); top: 0; right: 0; bottom: 0; border: 1px solid var(--hair); border-radius: var(--r); animation: none; }
+body.canvas .ed > .flow { position: absolute; z-index: 5; left: 0; top: 0; right: 0; bottom: 0; border: 1px solid var(--hair); border-radius: var(--r); animation: none; }
 body.canvas #s-next { display: inline-flex; }
 @media (max-width: 760px) {
   body.canvas .ed { display: flex; flex-direction: column; gap: 10px; }
   body.canvas .ed > .flow { position: relative; left: 0; height: 82dvh; order: 1; }
-  body.canvas .lib { order: 2; }
 }
 
-/* canvas first: Ember and the media rail are narrower by default, the board gets the room */
+/* canvas first: Ember is narrower by default, the board gets the room */
 body.canvas .s-body { grid-template-columns: var(--chatw, clamp(300px, 23vw, 440px)) minmax(0, 1fr); }
-body.canvas .ed { --rail: clamp(190px, 16vw, 300px); }
 
 /* ---------- the chat: a field at the bottom of the page; the session opens on the left when you talk ---------- */
 .dock { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 48; display: flex; align-items: flex-end; gap: 10px; width: min(600px, calc(100vw - 28px)); }
@@ -812,11 +797,8 @@ body.chat-off .chat, body.chat-off .rz-chat { display: none; }
 .lib-list.shop .vcard.pcard:nth-child(n) img { aspect-ratio: 1 / 1; object-fit: cover; }
 .vcard .chip.out { background: rgba(120, 28, 14, 0.9); color: #FFD8CC; }   /* the listing is out of stock */
 .sv-sort button[aria-pressed=true] { background: rgba(15, 23, 42, 0.1); color: var(--txt); box-shadow: 0 1px 0 rgba(15, 23, 42, 0.06) inset; }
-body.picking .lib { border-color: rgba(37, 99, 235, 0.5); box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.2), 0 0 40px -18px rgba(37, 99, 235, 0.6); }
 body.picking .as.pickable { cursor: pointer; } body.picking .as.pickable:hover { outline: 2px solid var(--accent); outline-offset: 1px; }
 body.picking .as.unpickable { opacity: 0.4; }
-body.canvas.ez-empty.picking #lib, body.canvas.ez-empty.stepping #lib { display: block; }   /* the rail comes back while a step is chosen or worked on in it, even with no files yet */
-body.canvas.ez-empty.picking .ed > .flow, body.canvas.ez-empty.stepping .ed > .flow { left: calc(var(--rail) + 10px); }
 .dock .composer { position: relative; }                       /* room for the circling light that points at the field */
 .composer.nope { animation: nope 0.32s ease-in-out; border-color: rgba(37, 99, 235, 0.9); }   /* Ember is busy: the message was not sent */
 @keyframes nope { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
@@ -826,7 +808,6 @@ body.canvas.ez-empty.picking .ed > .flow, body.canvas.ez-empty.stepping .ed > .f
 .dock-for span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dock-for button { flex: none; width: 24px; height: 24px; border: 0; border-radius: 50%; background: rgba(15, 23, 42, 0.08); color: var(--txt-2); font-size: 11px; cursor: pointer; }
 .dock-for button:hover { background: rgba(15, 23, 42, 0.16); color: var(--txt); }
-@media (max-width: 760px) { body.picking .lib { min-height: 58dvh; } body.picking .lib-list { max-height: 44dvh; } }   /* choosing in the rail needs room on a phone */
 
 /* ---------- a wider rail shows more about each Shop video ---------- */
 .lib-rail { container: rail / inline-size; }
@@ -859,27 +840,55 @@ html:has(body.studio) { background: #FFFFFF; color-scheme: light; }
 .studio .ez-steps li.now button { border-color: rgba(37, 99, 235, 0.45); }
 .studio ::selection { background: rgba(37, 99, 235, 0.22); }
 
-/* ---------- the menus: a strip on the left edge that opens into a panel ---------- */
-body.studio { padding-left: 56px; }
-.side { position: fixed; z-index: 46; left: 0; top: 0; bottom: 0; width: 56px; display: flex; flex-direction: column; gap: 2px; padding: 9px 8px 10px; background: #FFFFFF; border-right: 1px solid var(--hair);
-  overflow: hidden; cursor: pointer; transition: width 0.24s var(--ease), box-shadow 0.24s; }
-body.side-open .side { width: 264px; overflow-y: auto; cursor: default; box-shadow: 30px 0 70px -34px rgba(15, 23, 42, 0.4); }
-.side-tog, .side-h, .side-logo { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 40px; flex: none; padding: 0 10px; border: 0; border-radius: 11px; background: transparent; color: var(--txt-2);
-  font-size: 14.5px; font-weight: 500; text-align: left; text-decoration: none; white-space: nowrap; cursor: pointer; transition: background 0.12s, color 0.12s; }
-.side-tog svg, .side-h svg, .side-logo svg { width: 20px; height: 20px; flex: none; }
+/* =====================================================================================
+   The left rail: the library and the menus. A strip of icons runs down the left edge.
+   Media and Shop open the rail beside the board; its right edge drags wider, or all the
+   way left to shut it. A menu icon flies its items out over whatever is there. An open
+   step (flow.js) takes the rail over until it is closed.
+   ===================================================================================== */
+body.studio { padding-left: calc(56px + var(--sidew, 0px)); }
+.side { position: fixed; z-index: 46; left: 0; top: 0; bottom: 0; display: flex; background: #FFFFFF; border-right: 1px solid var(--hair); }
+.side-strip { flex: none; width: 56px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 9px 0 10px; overflow: hidden auto; scrollbar-width: none; }
+.side-strip::-webkit-scrollbar { display: none; }
+.side-tog, .side-h, .side-logo { position: relative; display: grid; place-items: center; width: 40px; height: 40px; flex: none; padding: 0; border: 0; border-radius: 11px; background: transparent; color: var(--txt-2);
+  text-decoration: none; cursor: pointer; transition: background 0.12s, color 0.12s; }
+.side-tog svg, .side-h svg, .side-logo svg { width: 20px; height: 20px; }
 .side-tog:hover, .side-h:hover, .side-logo:hover { background: rgba(15, 23, 42, 0.06); color: var(--txt); }
 .side-tog:focus-visible, .side-h:focus-visible, .side-logo:focus-visible, .side-items button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.side-tog { margin-bottom: 8px; color: var(--txt); }
-.side .lb { opacity: 0; transition: opacity 0.18s; }
-body.side-open .side .lb { opacity: 1; }
-.side-menus { display: flex; flex-direction: column; gap: 2px; flex: 1; min-height: 0; }
-.side-h .chev { width: 14px; height: 14px; margin-left: auto; color: var(--txt-3); opacity: 0; transition: transform 0.2s var(--ease), opacity 0.18s; }
-body.side-open .side-h .chev { opacity: 1; }
-.side-sec.open .side-h { background: var(--accent-tint); color: var(--accent-text); }
-.side-sec.open .side-h .chev { transform: rotate(90deg); color: var(--accent-text); }
-.side-items { display: none; flex-direction: column; gap: 1px; padding: 4px 0 8px 22px; margin-left: 19px; border-left: 1px solid var(--hair-2); }
-body.side-open .side-sec.open .side-items { display: flex; animation: rise 0.16s var(--ease); }
-.side-items button { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; align-items: center; gap: 6px; width: 100%; min-height: 34px; padding: 0 8px 0 4px; border: 0; border-radius: 8px; background: transparent;
+.side-tog { margin-bottom: 6px; color: var(--txt); }
+.side-h.on { background: var(--accent-tint); color: var(--accent-text); }
+.side-h.on::before { content: ''; position: absolute; left: -8px; top: 9px; bottom: 9px; width: 3px; border-radius: 0 3px 3px 0; background: var(--accent); }
+.side-lib i { position: absolute; right: 6px; top: 6px; width: 8px; height: 8px; overflow: hidden; border-radius: 50%; background: var(--accent); font-size: 0; box-shadow: 0 0 0 2px #FFFFFF; }   /* Shop has results */
+.side-lib i:empty { display: none; }
+.side-sep { flex: none; width: 24px; height: 1px; margin: 7px 0; background: var(--hair-2); }
+.side-menus { display: flex; flex-direction: column; gap: 2px; }
+.side-logo { margin-top: auto; color: var(--txt); } .side-logo .core { fill: var(--accent); }
+
+/* the open part: the library, or the step being worked on */
+.side-pane { position: relative; display: none; flex-direction: column; width: var(--sidew, 0px); min-width: 0; border-left: 1px solid var(--hair); overflow: hidden; }
+body.pane-open .side-pane { display: flex; }
+body.studio .side .side-pane #lib { display: flex; }          /* shown whenever the rail is open, also in a project with no files yet */
+.side-pane .lib, .side-pane .lib-rail { flex: 1; min-height: 0; }
+.side-pane .lib-tabs { padding: 12px 8px 8px 16px; }
+.side-pane .lib-tabs b { margin-right: auto; overflow: hidden; font-size: 15.500px; font-weight: 600; letter-spacing: -0.01em; text-overflow: ellipsis; white-space: nowrap; }
+.side-pane .lib-tabs .grow-btn { margin-left: 0; }
+body.picking .side-pane .pane-x { display: none; }           /* a step is waiting for a choice here: the step closes, not the rail */
+body.picking .side-pane { box-shadow: inset 0 0 0 2px rgba(37, 99, 235, 0.45); }
+
+/* the edge that drags */
+.side .rz-rail { left: auto; right: -6px; top: 0; bottom: 0; width: 11px; cursor: col-resize; }
+.side .rz-rail::after { left: 4px; }
+body.pane-open .side .rz-rail::after { opacity: 0.3; background: var(--txt-3); }
+body.pane-open .side .rz-rail:hover::after, body.pane-open .side .rz-rail.on::after, .side .rz-rail:focus-visible::after { opacity: 0.9; background: var(--accent); }
+
+/* a menu: its items fly out beside the strip */
+.side-fly { position: absolute; z-index: 8; left: 56px; top: 0; bottom: 0; width: 264px; display: flex; flex-direction: column; padding: 14px 10px 12px; overflow-y: auto; background: #FFFFFF;
+  border-left: 1px solid var(--hair); border-right: 1px solid var(--hair); box-shadow: 30px 0 70px -34px rgba(15, 23, 42, 0.4); animation: fly-in 0.16s var(--ease); }
+.side-fly[hidden] { display: none; }
+@keyframes fly-in { from { opacity: 0; transform: translateX(-8px); } }
+.side-fly h3 { margin: 0 8px 10px; font-size: 15.500px; font-weight: 600; letter-spacing: -0.01em; }
+.side-items { display: flex; flex-direction: column; gap: 1px; }
+.side-items button { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; align-items: center; gap: 6px; width: 100%; min-height: 36px; padding: 0 8px 0 4px; border: 0; border-radius: 8px; background: transparent;
   color: var(--txt); font-size: 14px; text-align: left; cursor: pointer; }
 .side-items button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .side-items button:hover:not(:disabled) { background: var(--accent); color: var(--on-accent); }
@@ -888,18 +897,29 @@ body.side-open .side-sec.open .side-items { display: flex; animation: rise 0.16s
 .side-items i { font-style: normal; font-size: 12px; color: var(--accent-text); }
 .side-items kbd { font: 11px var(--mono); color: var(--txt-3); }
 .side-items hr { width: 100%; margin: 4px 0; border: 0; border-top: 1px solid var(--hair); }
-.side-logo { margin-top: 8px; color: var(--txt); } .side-logo .core { fill: var(--accent); }
+
+/* the browse view: a layer over the whole editor */
+.ed > .lib-wide { z-index: 13; inset: 0; width: auto; height: auto; border-color: rgba(37, 99, 235, 0.3); }
+
 .side-btn { display: none; }
 .s-top { padding-left: 16px; }
 .dock { left: calc(50% + 28px); }
 @media (max-width: 760px) {
   body.studio { padding-left: 0; }
-  .side { z-index: 60; width: min(300px, 86vw); padding: 12px 10px; transform: translateX(-102%); transition: transform 0.26s var(--ease), box-shadow 0.26s; cursor: default; }
-  body.side-open .side { width: min(300px, 86vw); transform: none; }
-  .side .lb, .side-h .chev { opacity: 1; }
-  .side-tog, .side-h, .side-logo, .side-items button { min-height: 44px; }
+  .side { z-index: 60; width: min(380px, 94vw); transform: translateX(-102%); transition: transform 0.26s var(--ease), box-shadow 0.26s; }   /* a drawer: the strip and what it holds slide in together */
+  body.side-open .side { transform: none; box-shadow: 30px 0 70px -34px rgba(15, 23, 42, 0.4); }
+  .side-strip { width: 60px; }
+  .side-tog, .side-h, .side-logo { width: 44px; height: 44px; }
+  .side-pane { display: flex; flex: 1; width: auto; }
+  .side-pane .lib-tabs .icon-btn { width: 44px; height: 44px; }
+  .side-fly { left: 60px; right: 0; width: auto; border-right: 0; box-shadow: none; }
+  .side-items button { min-height: 44px; }
   .side-btn { display: grid; width: 44px; height: 44px; }
   .s-top { padding-left: 10px; }
   .dock { left: 50%; }
+  .ed.browse > .lib-wide { position: fixed; z-index: 40; border: 0; border-radius: 0; }
+  body.canvas .ed { flex: 1; min-height: 0; }                  /* the library is in the drawer now: the board takes the whole screen under the top bar */
+  body.canvas .ed > .flow { flex: 1; height: auto; min-height: 60dvh; }
+  body.canvas .ed-top { display: none; }
 }
-@media (prefers-reduced-motion: reduce) { .side, .side .lb, .side-h .chev { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .side, .side-fly { transition: none; animation: none; } }
